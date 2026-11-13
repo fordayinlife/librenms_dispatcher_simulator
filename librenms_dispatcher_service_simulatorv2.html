@@ -1,0 +1,2125 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LibreNMS Dispatcher Service Simulator — LibreNMS/__init__.py</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      background-color: #0b0f19;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    .noc-grid-bg {
+      background-image:
+        radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.08), transparent 60%),
+        linear-gradient(to right, rgba(30, 41, 59, 0.28) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(30, 41, 59, 0.28) 1px, transparent 1px);
+      background-size: 100% 100%, 32px 32px, 32px 32px;
+    }
+
+    .noc-card {
+      background: rgba(17, 24, 39, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.72);
+    }
+
+    /* Custom Range Sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 999px;
+      background: #1e293b;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #0b0f19;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.65);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+    }
+    input[type="range"].slider-emerald::-webkit-slider-thumb {
+      background: #10b981;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.65);
+    }
+    input[type="range"].slider-amber::-webkit-slider-thumb {
+      background: #f59e0b;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.65);
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(11, 15, 25, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    .code-line {
+      border-left: 3px solid transparent;
+      padding-left: 10px;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .code-line.hl-master {
+      background-color: rgba(245, 158, 11, 0.15);
+      border-left-color: #f59e0b;
+    }
+    .code-line.hl-dispatch {
+      background-color: rgba(56, 189, 248, 0.15);
+      border-left-color: #38bdf8;
+    }
+    .code-line.hl-worker {
+      background-color: rgba(16, 185, 129, 0.15);
+      border-left-color: #10b981;
+    }
+  </style>
+</head>
+<body class="noc-grid-bg min-h-screen flex flex-col selection:bg-sky-500/30 selection:text-sky-200">
+
+  <!-- ==================== TOP COMMAND BAR ==================== -->
+  <header class="noc-card sticky top-0 z-30 border-b border-slate-800 px-3 sm:px-5 py-2.5">
+    <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-2.5">
+
+      <!-- Left: Title & Cluster Lock Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 via-sky-500/20 to-emerald-500/20 border border-sky-400/40 flex items-center justify-center shadow-lg shrink-0">
+          <svg class="w-5 h-5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L4 6v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V6l-8-4z" />
+            <circle cx="12" cy="11" r="2.5" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-sm sm:text-base font-bold tracking-tight text-white">LibreNMS Distributed Dispatcher</h1>
+            <span class="px-2 py-0.5 rounded-md text-[11px] font-mono bg-sky-500/15 text-sky-300 border border-sky-500/30">
+              LibreNMS/__init__.py
+            </span>
+            <span id="hdr-master-pill" class="px-2 py-0.5 rounded-md text-[11px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/40 font-semibold">
+              👑 Master: poller-01
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono">
+            Redlock <span class="text-amber-300">librenms:dispatch:master</span> • Multi-Poller Groups • Redis <span class="text-sky-300">RPUSH/BLPOP</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Center: 1-Min vs 5-Min Polling Toggle & Cycle Timer -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <div class="flex items-center bg-slate-950/90 p-1 rounded-xl border border-slate-800" role="group" aria-label="Polling Interval">
+          <button id="btn-poll-60" onclick="setPollingInterval(60)"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+            <span>1 Min</span>
+            <span class="font-mono text-[10px] opacity-80">(60s Fast)</span>
+          </button>
+          <button id="btn-poll-300" onclick="setPollingInterval(300)"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>5 Min</span>
+            <span class="font-mono text-[10px] opacity-80">(300s Std)</span>
+          </button>
+        </div>
+
+        <!-- Next Cycle Progress -->
+        <div class="hidden xl:flex items-center gap-2.5 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5">
+          <span class="text-[11px] font-mono text-slate-400">Next Cycle: <strong id="hdr-cycle-countdown" class="text-white">60.0s</strong></span>
+          <div class="w-20 h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div id="hdr-cycle-bar" class="h-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-all duration-100" style="width: 15%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Speed Multiplier, Dispatch Now, Master Failover & Utilities -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Sim Speed -->
+        <div class="flex items-center bg-slate-950/90 p-1 rounded-xl border border-slate-800 text-xs font-mono">
+          <button data-speed="0" onclick="setSimSpeed(0)" class="speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer" title="Pause">⏸</button>
+          <button data-speed="1" onclick="setSimSpeed(1)" class="speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">1x</button>
+          <button data-speed="2" onclick="setSimSpeed(2)" class="speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">2x</button>
+          <button data-speed="5" onclick="setSimSpeed(5)" class="speed-btn px-2 py-1 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/40 font-semibold transition cursor-pointer">5x</button>
+          <button data-speed="10" onclick="setSimSpeed(10)" class="speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">10x</button>
+        </div>
+
+        <!-- Trigger Poll Cycle Now -->
+        <button onclick="triggerPollCycleNow()"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1.5 cursor-pointer active:scale-95">
+          <span>⚡</span>
+          <span>Trigger Poll Cycle Now</span>
+        </button>
+
+        <!-- Simulate Master Crash / Failover -->
+        <button onclick="simulateMasterCrash()"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/45 transition flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm shadow-rose-950/40">
+          <span>🔥</span>
+          <span>Simulate Master Crash / Failover</span>
+        </button>
+
+        <!-- Sound & Reset -->
+        <button id="btn-sound" onclick="toggleSound()"
+          class="p-1.5 rounded-xl text-xs bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800 transition cursor-pointer"
+          title="Toggle Sound Effects">
+          🔇
+        </button>
+        <button onclick="resetSimulation()"
+          class="p-1.5 px-2.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+          title="Reset Cluster">
+          ↺
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== FAILOVER / CLUSTER ALERT BANNER ==================== -->
+  <div id="failover-banner" class="hidden bg-amber-950/85 border-b border-amber-500/45 px-4 py-2 text-xs text-amber-200">
+    <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-2.5 w-2.5 rounded-full bg-amber-400 animate-ping"></span>
+        <span class="font-bold font-mono text-amber-300">REDLOCK ELECTION IN PROGRESS:</span>
+        <span id="failover-banner-text">Master crashed! Waiting for Redlock TTL (librenms:dispatch:master) to expire before Standby promotion...</span>
+      </div>
+      <span id="failover-ttl-badge" class="font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">TTL: 2.5s</span>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <main class="flex-1 max-w-[1920px] w-full mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+    <!-- LEFT COLUMN: Cluster Controls (Poller Nodes, Poller Groups, Queue Lengths) -->
+    <aside class="lg:col-span-4 xl:col-span-4 flex flex-col gap-3.5 max-h-none lg:max-h-[calc(100vh-88px)] lg:overflow-y-auto pr-0.5">
+
+      <!-- SECTION 1: POLLER NODES & MASTER ELECTION -->
+      <div class="noc-card rounded-2xl p-3.5 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+              <span>🖥️ Poller Nodes Cluster</span>
+              <span id="lbl-poller-count" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-sky-300">3</span>
+            </h2>
+            <p class="text-[11px] text-slate-400">Assign Poller Groups & worker threads per node</p>
+          </div>
+          <button onclick="addPollerNode()"
+            class="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/40 transition cursor-pointer shrink-0">
+            + Add Poller Node
+          </button>
+        </div>
+
+        <div id="poller-nodes-list" class="space-y-2.5">
+          <!-- Rendered dynamically by renderPollerNodesList() -->
+        </div>
+      </div>
+
+      <!-- SECTION 2: POLLER GROUPS & QUEUE DEPTH CONTROLS -->
+      <div class="noc-card rounded-2xl p-3.5 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5">
+              <span>🗂️ Poller Groups & Redis Queues</span>
+              <span id="lbl-group-count" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-emerald-300">3</span>
+            </h2>
+            <p class="text-[11px] text-slate-400">Adjust device load & inject queue backlogs</p>
+          </div>
+          <button onclick="addPollerGroup()"
+            class="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 transition cursor-pointer shrink-0">
+            + Add Poller Group
+          </button>
+        </div>
+
+        <div id="poller-groups-list" class="space-y-2.5">
+          <!-- Rendered dynamically by renderPollerGroupsList() -->
+        </div>
+      </div>
+
+      <!-- SECTION 3: ACTIVE REDIS QUEUE TYPES & POLL DURATION -->
+      <div class="noc-card rounded-2xl p-3.5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-white">⚙️ Queue Types & SNMP Latency</h2>
+          <span class="text-[10px] font-mono text-slate-400">librenms:queue:*</span>
+        </div>
+
+        <!-- Queue Type Checkboxes -->
+        <div id="queue-types-toggles" class="flex flex-wrap gap-1.5">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Simulated Poll Execution Latency -->
+        <div class="pt-2 border-t border-slate-800/80">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-300">Avg Device Poll Time (SNMP / RRD)</span>
+            <span id="lbl-poll-latency" class="font-mono font-bold text-amber-300">750 ms</span>
+          </div>
+          <input id="slider-poll-latency" type="range" min="200" max="3000" step="50" value="750"
+            oninput="updatePollLatency(this.value)" class="w-full slider-amber" />
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- RIGHT COLUMN: KPI Strip + 3-Zone Animated Canvas + Bottom Tabs -->
+    <section class="lg:col-span-8 xl:col-span-8 flex flex-col gap-3.5 min-w-0">
+
+      <!-- Top 4-Card KPI Strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <!-- KPI 1: Master Dispatcher & Redlock Lease -->
+        <div class="noc-card rounded-2xl p-3 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>MASTER DISPATCHER</span>
+            <span class="font-mono text-amber-400">REDLOCK</span>
+          </div>
+          <div class="mt-1 flex items-baseline justify-between gap-1">
+            <span id="kpi-master-name" class="text-lg sm:text-xl font-bold font-mono text-amber-300 truncate">poller-01</span>
+            <span id="kpi-master-ttl" class="text-[11px] font-mono text-emerald-400 shrink-0">TTL 15.0s</span>
+          </div>
+          <div class="mt-2 w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div id="kpi-master-ttl-bar" class="h-full bg-amber-400 transition-all duration-100" style="width: 100%"></div>
+          </div>
+        </div>
+
+        <!-- KPI 2: Total Redis Queue Depth -->
+        <div class="noc-card rounded-2xl p-3 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>REDIS QUEUE DEPTH</span>
+            <span class="font-mono text-sky-400">RPUSH/BLPOP</span>
+          </div>
+          <div class="mt-1 flex items-baseline justify-between">
+            <span id="kpi-total-queued" class="text-xl sm:text-2xl font-bold font-mono text-white">0</span>
+            <span id="kpi-active-queues" class="text-[11px] font-mono text-sky-300">0 queues</span>
+          </div>
+          <div class="mt-1.5 text-[10px] font-mono text-slate-400 truncate" id="kpi-queue-breakdown">
+            poller: 0 • other: 0
+          </div>
+        </div>
+
+        <!-- KPI 3: Cluster Worker Threads -->
+        <div class="noc-card rounded-2xl p-3 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>CLUSTER WORKERS</span>
+            <span class="font-mono text-emerald-400">THREADS</span>
+          </div>
+          <div class="mt-1 flex items-baseline justify-between">
+            <span id="kpi-cluster-workers" class="text-xl sm:text-2xl font-bold font-mono text-emerald-400">0 / 0</span>
+            <span id="kpi-worker-util" class="text-[11px] font-mono text-slate-300">0% busy</span>
+          </div>
+          <div class="mt-2 w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div id="kpi-worker-bar" class="h-full bg-emerald-400 transition-all duration-150" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- KPI 4: Cluster Throughput -->
+        <div class="noc-card rounded-2xl p-3 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>CLUSTER THROUGHPUT</span>
+            <span class="font-mono text-violet-400">RRD/DB</span>
+          </div>
+          <div class="mt-1 flex items-baseline justify-between">
+            <span id="kpi-devices-per-min" class="text-xl sm:text-2xl font-bold font-mono text-white">0<span class="text-xs font-normal text-slate-400"> dev/m</span></span>
+            <span id="kpi-jobs-per-sec" class="text-[11px] font-mono text-emerald-300">0.0/s</span>
+          </div>
+          <div class="mt-1.5 text-[10px] font-mono text-slate-400 flex justify-between">
+            <span>Total Done: <strong id="kpi-total-done" class="text-slate-200">0</strong></span>
+            <span>Elections: <strong id="kpi-elections" class="text-amber-300">1</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- INTERACTIVE 3-ZONE HTML5 CANVAS PIPELINE -->
+      <div class="noc-card rounded-2xl p-3 sm:p-4 flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-200">Distributed Architecture Topology</span>
+            <span class="text-[11px] font-mono text-slate-500 hidden sm:inline">(Click any Poller or Group to inspect)</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 text-[11px] font-mono">
+            <span class="flex items-center gap-1.5 text-amber-300"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>Master RPUSH</span>
+            <span class="flex items-center gap-1.5 text-sky-300"><span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>Redis Group Queue</span>
+            <span class="flex items-center gap-1.5 text-emerald-300"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>Worker BLPOP</span>
+            <span class="flex items-center gap-1.5 text-rose-300"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>Offline / Unassigned</span>
+          </div>
+        </div>
+
+        <div id="canvas-container" class="relative w-full h-[380px] sm:h-[430px] rounded-xl bg-[#070a12] border border-slate-800/90 overflow-hidden">
+          <canvas id="cluster-canvas" class="block w-full h-full cursor-pointer"></canvas>
+
+          <!-- Floating Selection Inspector Overlay -->
+          <div id="canvas-inspector" class="hidden absolute bottom-3 right-3 left-3 sm:left-auto sm:w-80 noc-card rounded-xl p-3 border border-sky-500/50 shadow-2xl z-20 text-xs">
+            <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
+              <span id="insp-title" class="font-mono font-bold text-white">poller-01</span>
+              <button onclick="clearCanvasSelection()" class="text-slate-400 hover:text-white px-1 cursor-pointer">✕</button>
+            </div>
+            <div id="insp-content" class="font-mono text-[11px] text-slate-300 space-y-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM INTERACTIVE TABS (Code & Live State | Event Stream | Group Load Metrics) -->
+      <div class="noc-card rounded-2xl p-3.5 flex flex-col">
+        <!-- Tab Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-800">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button id="btab-btn-code" onclick="switchBottomTab('code')"
+              class="btab-btn px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 bg-sky-500/20 text-sky-300 border border-sky-500/40 cursor-pointer">
+              <span>🐍</span>
+              <span>LibreNMS/__init__.py & Live State</span>
+            </button>
+            <button id="btab-btn-logs" onclick="switchBottomTab('logs')"
+              class="btab-btn px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white cursor-pointer">
+              <span>📜</span>
+              <span>Dispatcher Event Stream</span>
+              <span id="log-count-pill" class="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-slate-800 text-slate-300">0</span>
+            </button>
+            <button id="btab-btn-metrics" onclick="switchBottomTab('metrics')"
+              class="btab-btn px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white cursor-pointer">
+              <span>📊</span>
+              <span>Group Load & Throughput Metrics</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 1: LibreNMS/__init__.py Annotated Code & Live State -->
+        <div id="btab-panel-code" class="grid grid-cols-1 xl:grid-cols-12 gap-3.5">
+          <!-- Annotated Python Code -->
+          <div class="xl:col-span-8 bg-[#070a12] border border-slate-800 rounded-xl p-3 overflow-x-auto max-h-[270px] overflow-y-auto font-mono text-[11px] leading-relaxed" id="annotated-code-box">
+            <!-- Populated by renderAnnotatedCode() -->
+          </div>
+          <!-- Live Python Runtime Variables Panel -->
+          <div class="xl:col-span-4 bg-[#070a12] border border-slate-800 rounded-xl p-3 flex flex-col justify-between font-mono text-[11px]">
+            <div>
+              <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                <span class="font-bold text-sky-300">Live Runtime State</span>
+                <span id="code-exec-badge" class="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300">BLPOP_LOOP</span>
+              </div>
+              <div id="live-python-vars" class="space-y-1.5 text-slate-300">
+                <!-- Populated dynamically -->
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-800 text-[10px] text-slate-400">
+              Only <strong class="text-amber-300">is_master == True</strong> runs <code class="text-sky-300">dispatch()</code>; all online nodes run <code class="text-emerald-300">BLPOP</code> workers for their subscribed <code class="text-slate-200">poller_groups</code>.
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: Live Dispatcher Event Stream -->
+        <div id="btab-panel-logs" class="hidden flex flex-col gap-2">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button onclick="setLogTagFilter('ALL')" data-tag="ALL" class="ltag-btn px-2 py-0.5 rounded text-[10px] font-mono bg-sky-500/20 text-sky-300 border border-sky-500/40 cursor-pointer">ALL</button>
+              <button onclick="setLogTagFilter('MASTER')" data-tag="MASTER" class="ltag-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer">[MASTER]</button>
+              <button onclick="setLogTagFilter('LOCK')" data-tag="LOCK" class="ltag-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer">[LOCK]</button>
+              <button onclick="setLogTagFilter('DISPATCH')" data-tag="DISPATCH" class="ltag-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer">[DISPATCH]</button>
+              <button onclick="setLogTagFilter('WORKER')" data-tag="WORKER" class="ltag-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer">[WORKER]</button>
+              <button onclick="setLogTagFilter('FAILOVER')" data-tag="FAILOVER" class="ltag-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer">[FAILOVER]</button>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="btn-pause-logs" onclick="toggleLogsPause()" class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">Pause Stream</button>
+              <button onclick="clearEventLogs()" class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 hover:bg-rose-950 text-rose-300 cursor-pointer">Clear</button>
+            </div>
+          </div>
+          <div id="event-logs-box" class="bg-[#070a12] border border-slate-800 rounded-xl p-2.5 h-[230px] overflow-y-auto font-mono text-[11px] space-y-1">
+            <!-- Event log lines -->
+          </div>
+        </div>
+
+        <!-- TAB 3: Group Load & Throughput Metrics -->
+        <div id="btab-panel-metrics" class="hidden grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[270px] overflow-y-auto">
+          <div class="bg-[#070a12] border border-slate-800 rounded-xl p-3">
+            <h3 class="text-xs font-bold font-mono text-sky-300 mb-2">Poller Node Share & Jobs Processed</h3>
+            <div id="metrics-pollers-box" class="space-y-2.5 text-xs"></div>
+          </div>
+          <div class="bg-[#070a12] border border-slate-800 rounded-xl p-3">
+            <h3 class="text-xs font-bold font-mono text-emerald-300 mb-2">Poller Group Queue Depth & Wait Time</h3>
+            <div id="metrics-groups-box" class="space-y-2.5 text-xs"></div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    /**
+     * ============================================================================
+     * LibreNMS Distributed Dispatcher Service Simulator (LibreNMS/__init__.py)
+     * ----------------------------------------------------------------------------
+     * Models:
+     *  1. Redlock Master Election (`librenms:dispatch:master`, 15s TTL, 5s renewal)
+     *  2. Single Master Dispatcher scheduling & RPUSH routing by `poller_group`
+     *  3. Multiple Poller Nodes per Poller Group consuming via `BLPOP`
+     *  4. 1-Min (60s) vs 5-Min (300s) polling intervals & 5 Redis queue types
+     * ============================================================================
+     */
+
+    const QUEUE_TYPES = [
+      { key: 'poller',    label: 'poller',    color: '#38bdf8', ratio: 1.00, latMult: 1.00, enabled: true,  usesGlobalFreq: true,  freq: 60 },
+      { key: 'discovery', label: 'discovery', color: '#a855f7', ratio: 0.25, latMult: 1.80, enabled: true,  usesGlobalFreq: false, freq: 180 },
+      { key: 'services',  label: 'services',  color: '#10b981', ratio: 0.35, latMult: 0.75, enabled: true,  usesGlobalFreq: true,  freq: 60 },
+      { key: 'ping',      label: 'ping',      color: '#14b8a6', ratio: 0.50, latMult: 0.30, enabled: true,  usesGlobalFreq: false, freq: 60 },
+      { key: 'alerting',  label: 'alerting',  color: '#f59e0b', ratio: 0.20, latMult: 0.45, enabled: true,  usesGlobalFreq: false, freq: 60 }
+    ];
+
+    const GROUP_PALETTE = ['#38bdf8', '#10b981', '#a855f7', '#f59e0b', '#ec4899', '#14b8a6'];
+
+    const sim = {
+      pollingInterval: 60,        // 60 (1-min) or 300 (5-min)
+      simSpeed: 5,                // 0, 1, 2, 5, 10
+      simTime: 0,
+      baseLatencyMs: 750,
+      soundEnabled: false,
+      activeBottomTab: 'code',
+      logTagFilter: 'ALL',
+      logsPaused: false,
+      selectedCanvasItem: null,   // { kind: 'poller'|'group', id }
+      codeHighlightPhase: 'WORKER',
+      codeHighlightTimer: 0,
+
+      // Distributed Redlock State (`librenms:dispatch:master`)
+      redlock: {
+        key: 'librenms:dispatch:master',
+        holderId: null,           // Poller node ID currently holding the lock
+        ttl: 0,                   // Remaining lease seconds (max 15s)
+        maxTtl: 15.0,
+        renewInterval: 5.0,
+        renewTimer: 5.0,
+        electionsCount: 0
+      },
+
+      // Master Dispatcher Schedule Timers (only ticked when redlock.holderId is online!)
+      timers: {
+        poller: 3.0,
+        discovery: 18.0,
+        services: 8.0,
+        ping: 12.0,
+        alerting: 15.0
+      },
+
+      pollerNodes: [],
+      pollerGroups: [],
+      nextPollerNum: 4,
+      nextGroupId: 3,
+      nextJobId: 1000,
+
+      // Telemetry & Visual Particles
+      totalCompleted: 0,
+      recentCompletionTimes: [],
+      particles: [],              // { kind: 'RPUSH'|'BLPOP'|'STORAGE', fromId, toId, color, progress, speed }
+      storagePulses: [],
+      logs: []
+    };
+
+    // -------------------- INITIAL DATA FACTORIES --------------------
+    function initClusterData() {
+      sim.pollerGroups = [
+        {
+          id: 0,
+          name: 'Group 0: Default / Core',
+          shortName: 'group_0',
+          color: GROUP_PALETTE[0],
+          deviceCount: 80,
+          queues: createEmptyGroupQueues(),
+          totalCompleted: 0,
+          totalWaitTime: 0,
+          completedSamples: 0
+        },
+        {
+          id: 1,
+          name: 'Group 1: US-East DC',
+          shortName: 'group_1',
+          color: GROUP_PALETTE[1],
+          deviceCount: 65,
+          queues: createEmptyGroupQueues(),
+          totalCompleted: 0,
+          totalWaitTime: 0,
+          completedSamples: 0
+        },
+        {
+          id: 2,
+          name: 'Group 2: EU-West Edge',
+          shortName: 'group_2',
+          color: GROUP_PALETTE[2],
+          deviceCount: 45,
+          queues: createEmptyGroupQueues(),
+          totalCompleted: 0,
+          totalWaitTime: 0,
+          completedSamples: 0
+        }
+      ];
+
+      sim.pollerNodes = [
+        {
+          id: 'poller-01',
+          name: 'poller-01',
+          online: true,
+          isMaster: false,
+          groups: [0, 1],
+          workerCount: 8,
+          workers: [],
+          jobsProcessed: 0,
+          retryElectionIn: 0
+        },
+        {
+          id: 'poller-02',
+          name: 'poller-02',
+          online: true,
+          isMaster: false,
+          groups: [0, 2],
+          workerCount: 6,
+          workers: [],
+          jobsProcessed: 0,
+          retryElectionIn: 0.4
+        },
+        {
+          id: 'poller-03',
+          name: 'poller-03',
+          online: true,
+          isMaster: false,
+          groups: [1, 2],
+          workerCount: 6,
+          workers: [],
+          jobsProcessed: 0,
+          retryElectionIn: 0.8
+        }
+      ];
+
+      sim.pollerNodes.forEach(syncNodeWorkers);
+    }
+
+    function createEmptyGroupQueues() {
+      const map = {};
+      QUEUE_TYPES.forEach(qt => {
+        map[qt.key] = [];
+      });
+      return map;
+    }
+
+    function syncNodeWorkers(node) {
+      if (!node.online) {
+        node.workers = [];
+        return;
+      }
+      while (node.workers.length < node.workerCount) {
+        node.workers.push({
+          idx: node.workers.length,
+          busy: false,
+          job: null,
+          progress: 0,
+          duration: 0.8
+        });
+      }
+      if (node.workers.length > node.workerCount) {
+        // Remove idle workers first, then trim tail
+        for (let i = node.workers.length - 1; i >= 0 && node.workers.length > node.workerCount; i--) {
+          if (!node.workers[i].busy) node.workers.splice(i, 1);
+        }
+        if (node.workers.length > node.workerCount) {
+          node.workers.length = node.workerCount;
+        }
+      }
+    }
+
+    // -------------------- AUDIO CUES --------------------
+    let audioCtx = null;
+    function playBeep(freq, dur = 0.06, type = 'sine', vol = 0.035) {
+      if (!sim.soundEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + dur);
+      } catch (e) {}
+    }
+
+    function toggleSound() {
+      sim.soundEnabled = !sim.soundEnabled;
+      const btn = document.getElementById('btn-sound');
+      btn.textContent = sim.soundEnabled ? '🔊' : '🔇';
+      btn.classList.toggle('text-sky-300', sim.soundEnabled);
+      btn.classList.toggle('border-sky-500/40', sim.soundEnabled);
+      if (sim.soundEnabled) playBeep(520, 0.08, 'triangle', 0.05);
+    }
+
+    // -------------------- LOGGING SYSTEM --------------------
+    function logEvent(tag, source, message) {
+      const now = new Date();
+      const ts = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+      sim.logs.unshift({ ts, tag, source, message });
+      if (sim.logs.length > 160) sim.logs.pop();
+      document.getElementById('log-count-pill').textContent = sim.logs.length;
+      if (sim.activeBottomTab === 'logs' && !sim.logsPaused) {
+        renderEventLogs();
+      }
+    }
+
+    function setLogTagFilter(tag) {
+      sim.logTagFilter = tag;
+      document.querySelectorAll('.ltag-btn').forEach(btn => {
+        const active = btn.dataset.tag === tag;
+        btn.className = active
+          ? 'ltag-btn px-2 py-0.5 rounded text-[10px] font-mono bg-sky-500/20 text-sky-300 border border-sky-500/40 cursor-pointer'
+          : 'ltag-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer';
+      });
+      renderEventLogs();
+    }
+
+    function toggleLogsPause() {
+      sim.logsPaused = !sim.logsPaused;
+      const btn = document.getElementById('btn-pause-logs');
+      btn.textContent = sim.logsPaused ? 'Resume Stream' : 'Pause Stream';
+      btn.classList.toggle('text-amber-300', sim.logsPaused);
+      if (!sim.logsPaused) renderEventLogs();
+    }
+
+    function clearEventLogs() {
+      sim.logs = [];
+      document.getElementById('log-count-pill').textContent = '0';
+      renderEventLogs();
+    }
+
+    function renderEventLogs() {
+      const box = document.getElementById('event-logs-box');
+      const items = sim.logTagFilter === 'ALL'
+        ? sim.logs
+        : sim.logs.filter(l => l.tag === sim.logTagFilter);
+
+      if (items.length === 0) {
+        box.innerHTML = `<div class="text-slate-500 italic py-8 text-center">No events recorded for filter [${sim.logTagFilter}]</div>`;
+        return;
+      }
+
+      const tagColors = {
+        MASTER: 'text-amber-400 font-bold',
+        LOCK: 'text-yellow-300 font-semibold',
+        DISPATCH: 'text-sky-400 font-semibold',
+        WORKER: 'text-emerald-400',
+        FAILOVER: 'text-rose-400 font-bold'
+      };
+
+      box.innerHTML = items.slice(0, 90).map(l => `
+        <div class="leading-snug py-0.5 border-b border-slate-800/40 break-words">
+          <span class="text-slate-500">${l.ts}</span>
+          <span class="${tagColors[l.tag] || 'text-slate-300'}">[${l.tag}]</span>
+          <span class="text-indigo-300">[${l.source}]</span>
+          <span class="text-slate-200">${escapeHtml(l.message)}</span>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // -------------------- REDLOCK MASTER ELECTION & FAILOVER --------------------
+    function electMasterNode(preferredNode = null) {
+      const candidates = preferredNode && preferredNode.online
+        ? [preferredNode]
+        : sim.pollerNodes.filter(n => n.online);
+
+      // Clear previous master flags
+      sim.pollerNodes.forEach(n => { n.isMaster = false; });
+
+      if (candidates.length === 0) {
+        sim.redlock.holderId = null;
+        sim.redlock.ttl = 0;
+        logEvent('FAILOVER', 'Redlock', `No online poller nodes available to acquire ${sim.redlock.key}!`);
+        return null;
+      }
+
+      const winner = candidates[0];
+      winner.isMaster = true;
+      sim.redlock.holderId = winner.id;
+      sim.redlock.ttl = sim.redlock.maxTtl;
+      sim.redlock.renewTimer = sim.redlock.renewInterval;
+      sim.redlock.electionsCount++;
+
+      highlightCode('MASTER');
+      logEvent('LOCK', winner.name, `Redlock ACQUIRED (${sim.redlock.key}, TTL=${sim.redlock.maxTtl}s) -> Promoted to MASTER DISPATCHER`);
+      playBeep(587.33, 0.09, 'triangle', 0.05);
+      return winner;
+    }
+
+    function simulateMasterCrash() {
+      const currentMaster = sim.pollerNodes.find(n => n.id === sim.redlock.holderId && n.online);
+      if (!currentMaster) {
+        // If no master currently online, bring poller-01 online and elect
+        const first = sim.pollerNodes[0];
+        if (first) {
+          first.online = true;
+          syncNodeWorkers(first);
+          electMasterNode(first);
+          renderAllControls();
+        }
+        return;
+      }
+
+      // Take the current master offline abruptly WITHOUT releasing its Redlock (simulating crash)
+      currentMaster.online = false;
+      currentMaster.isMaster = false;
+      // Requeue any in-flight jobs back into their respective Redis queues (zero job loss!)
+      let requeued = 0;
+      currentMaster.workers.forEach(w => {
+        if (w.busy && w.job) {
+          const grp = sim.pollerGroups.find(g => g.id === w.job.groupId);
+          if (grp && grp.queues[w.job.qType]) {
+            grp.queues[w.job.qType].unshift(w.job);
+            requeued++;
+          }
+        }
+      });
+      currentMaster.workers = [];
+
+      // Set remaining Redlock lease to 2.8s so the user vividly sees the TTL expire and Standby win election
+      sim.redlock.ttl = 2.8;
+      highlightCode('MASTER');
+      logEvent(
+        'FAILOVER',
+        currentMaster.name,
+        `CRASHED / OFFLINE! ${requeued} in-flight jobs preserved in Redis. Lock ${sim.redlock.key} expires in 2.8s...`
+      );
+      playBeep(185, 0.16, 'sawtooth', 0.055);
+      renderAllControls();
+    }
+
+    function togglePollerOnline(nodeId) {
+      const node = sim.pollerNodes.find(n => n.id === nodeId);
+      if (!node) return;
+
+      if (node.online) {
+        if (node.id === sim.redlock.holderId) {
+          simulateMasterCrash();
+          return;
+        }
+        node.online = false;
+        node.workers.forEach(w => {
+          if (w.busy && w.job) {
+            const grp = sim.pollerGroups.find(g => g.id === w.job.groupId);
+            if (grp && grp.queues[w.job.qType]) grp.queues[w.job.qType].unshift(w.job);
+          }
+        });
+        node.workers = [];
+        logEvent('WORKER', node.name, `Node stopped (Offline). Workers terminated; Redis queues untouched.`);
+      } else {
+        node.online = true;
+        node.retryElectionIn = 0.2;
+        syncNodeWorkers(node);
+        logEvent('WORKER', node.name, `Node started (Online) with ${node.workerCount} workers subscribed to groups [${node.groups.join(', ')}]`);
+        if (!sim.redlock.holderId) {
+          electMasterNode(node);
+        }
+      }
+      renderAllControls();
+    }
+
+    // -------------------- MASTER DISPATCHING BY POLLER GROUP --------------------
+    function dispatchQueueType(qTypeKey, manual = false) {
+      const master = sim.pollerNodes.find(n => n.id === sim.redlock.holderId && n.online);
+      if (!master) return;
+
+      const qt = QUEUE_TYPES.find(q => q.key === qTypeKey);
+      if (!qt || !qt.enabled) return;
+
+      let totalPushed = 0;
+      sim.pollerGroups.forEach(grp => {
+        const count = Math.max(1, Math.round(grp.deviceCount * qt.ratio));
+        for (let i = 0; i < count; i++) {
+          grp.queues[qt.key].push({
+            id: sim.nextJobId++,
+            groupId: grp.id,
+            qType: qt.key,
+            enqueuedAt: sim.simTime
+          });
+        }
+        totalPushed += count;
+
+        // Visual RPUSH packets from Master Poller Node -> Group Redis Queue
+        const burst = Math.min(8, Math.ceil(count / 8));
+        for (let b = 0; b < burst; b++) {
+          sim.particles.push({
+            kind: 'RPUSH',
+            fromPollerId: master.id,
+            toGroupId: grp.id,
+            color: '#f59e0b',
+            progress: -b * 0.08,
+            speed: 2.3
+          });
+        }
+      });
+
+      highlightCode('DISPATCH');
+      logEvent(
+        'DISPATCH',
+        master.name,
+        `${manual ? 'Manual' : 'Scheduled'} RPUSH [${qt.key}] -> pushed ${totalPushed} jobs across ${sim.pollerGroups.length} Poller Groups`
+      );
+      playBeep(440, 0.05, 'sine', 0.03);
+    }
+
+    function triggerPollCycleNow() {
+      const master = sim.pollerNodes.find(n => n.id === sim.redlock.holderId && n.online);
+      if (!master) {
+        // Elect one immediately if possible
+        const elected = electMasterNode();
+        if (!elected) return;
+      }
+      QUEUE_TYPES.forEach(qt => {
+        if (qt.enabled) {
+          dispatchQueueType(qt.key, true);
+          sim.timers[qt.key] = qt.usesGlobalFreq ? sim.pollingInterval : qt.freq;
+        }
+      });
+      renderAllControls();
+    }
+
+    function injectGroupBacklog(groupId, amount) {
+      const grp = sim.pollerGroups.find(g => g.id === groupId);
+      if (!grp) return;
+      const activeTypes = QUEUE_TYPES.filter(q => q.enabled);
+      if (activeTypes.length === 0) return;
+
+      for (let i = 0; i < amount; i++) {
+        const qt = activeTypes[i % activeTypes.length];
+        grp.queues[qt.key].push({
+          id: sim.nextJobId++,
+          groupId: grp.id,
+          qType: qt.key,
+          enqueuedAt: sim.simTime
+        });
+      }
+
+      const master = sim.pollerNodes.find(n => n.id === sim.redlock.holderId && n.online);
+      if (master) {
+        for (let b = 0; b < 10; b++) {
+          sim.particles.push({
+            kind: 'RPUSH',
+            fromPollerId: master.id,
+            toGroupId: grp.id,
+            color: grp.color,
+            progress: -b * 0.06,
+            speed: 2.5
+          });
+        }
+      }
+
+      logEvent('DISPATCH', grp.shortName, `Injected +${amount} queued jobs into ${grp.name} (LLEN=${getGroupQueueDepth(grp)})`);
+      renderAllControls();
+    }
+
+    function drainGroupQueues(groupId) {
+      const grp = sim.pollerGroups.find(g => g.id === groupId);
+      if (!grp) return;
+      Object.keys(grp.queues).forEach(k => { grp.queues[k] = []; });
+      logEvent('DISPATCH', grp.shortName, `Flushed all Redis queues for ${grp.name}`);
+      renderAllControls();
+    }
+
+    function getGroupQueueDepth(grp) {
+      return Object.values(grp.queues).reduce((acc, arr) => acc + arr.length, 0);
+    }
+
+    // -------------------- CLUSTER MUTATION CONTROLS --------------------
+    function addPollerNode() {
+      const num = sim.nextPollerNum++;
+      const id = `poller-${String(num).padStart(2, '0')}`;
+      // Assign to Group 0 by default (or the most congested group)
+      let targetGroup = 0;
+      let maxDepth = -1;
+      sim.pollerGroups.forEach(g => {
+        const d = getGroupQueueDepth(g);
+        if (d > maxDepth) { maxDepth = d; targetGroup = g.id; }
+      });
+
+      const newNode = {
+        id,
+        name: id,
+        online: true,
+        isMaster: false,
+        groups: [targetGroup],
+        workerCount: 6,
+        workers: [],
+        jobsProcessed: 0,
+        retryElectionIn: 0.3
+      };
+      syncNodeWorkers(newNode);
+      sim.pollerNodes.push(newNode);
+
+      if (!sim.redlock.holderId) {
+        electMasterNode(newNode);
+      }
+
+      logEvent('WORKER', newNode.name, `Joined cluster (Standby mode) -> subscribed to Poller Group ${targetGroup} with 6 BLPOP workers`);
+      renderAllControls();
+    }
+
+    function removePollerNode(nodeId) {
+      if (sim.pollerNodes.length <= 1) return;
+      const idx = sim.pollerNodes.findIndex(n => n.id === nodeId);
+      if (idx === -1) return;
+      const node = sim.pollerNodes[idx];
+      if (node.id === sim.redlock.holderId) {
+        sim.redlock.holderId = null;
+        sim.redlock.ttl = 0;
+      }
+      sim.pollerNodes.splice(idx, 1);
+      if (!sim.redlock.holderId) electMasterNode();
+      logEvent('WORKER', node.name, `Removed poller node from cluster`);
+      renderAllControls();
+    }
+
+    function togglePollerGroupMembership(nodeId, groupId) {
+      const node = sim.pollerNodes.find(n => n.id === nodeId);
+      if (!node) return;
+      const idx = node.groups.indexOf(groupId);
+      if (idx >= 0) {
+        node.groups.splice(idx, 1);
+        logEvent('WORKER', node.name, `Unsubscribed from Poller Group ${groupId}`);
+      } else {
+        node.groups.push(groupId);
+        node.groups.sort((a, b) => a - b);
+        logEvent('WORKER', node.name, `Subscribed to Poller Group ${groupId} (workers now BLPOP group_${groupId})`);
+      }
+      renderAllControls();
+    }
+
+    function updatePollerWorkers(nodeId, count) {
+      const node = sim.pollerNodes.find(n => n.id === nodeId);
+      if (!node) return;
+      node.workerCount = Math.max(1, Math.min(16, Number(count)));
+      syncNodeWorkers(node);
+      renderAllControls();
+    }
+
+    function addPollerGroup() {
+      const gid = sim.nextGroupId++;
+      const color = GROUP_PALETTE[gid % GROUP_PALETTE.length];
+      const names = ['AP-South DC', 'LATAM Edge', 'Core Backbone', 'DMZ Cloud', 'Branch WAN'];
+      const label = names[(gid - 3) % names.length];
+
+      sim.pollerGroups.push({
+        id: gid,
+        name: `Group ${gid}: ${label}`,
+        shortName: `group_${gid}`,
+        color,
+        deviceCount: 50,
+        queues: createEmptyGroupQueues(),
+        totalCompleted: 0,
+        totalWaitTime: 0,
+        completedSamples: 0
+      });
+
+      // Automatically subscribe the last poller node so the new group has an initial consumer
+      if (sim.pollerNodes.length > 0) {
+        const lastPoller = sim.pollerNodes[sim.pollerNodes.length - 1];
+        if (!lastPoller.groups.includes(gid)) lastPoller.groups.push(gid);
+      }
+
+      logEvent('DISPATCH', `group_${gid}`, `Created Poller Group ${gid} (${label}) with Redis namespace librenms:queue:*:group_${gid}`);
+      renderAllControls();
+    }
+
+    function updateGroupDeviceCount(groupId, val) {
+      const grp = sim.pollerGroups.find(g => g.id === groupId);
+      if (!grp) return;
+      grp.deviceCount = Number(val);
+      renderAllControls();
+    }
+
+    function toggleQueueTypeEnabled(qKey) {
+      const qt = QUEUE_TYPES.find(q => q.key === qKey);
+      if (!qt) return;
+      qt.enabled = !qt.enabled;
+      renderAllControls();
+    }
+
+    function updatePollLatency(ms) {
+      sim.baseLatencyMs = Number(ms);
+      document.getElementById('lbl-poll-latency').textContent = `${sim.baseLatencyMs} ms`;
+    }
+
+    function setPollingInterval(seconds) {
+      sim.pollingInterval = seconds;
+      QUEUE_TYPES.forEach(qt => {
+        if (qt.usesGlobalFreq) {
+          qt.freq = seconds;
+          sim.timers[qt.key] = Math.min(sim.timers[qt.key], seconds);
+        }
+      });
+
+      const btn60 = document.getElementById('btn-poll-60');
+      const btn300 = document.getElementById('btn-poll-300');
+      if (seconds === 60) {
+        btn60.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer bg-sky-500/20 text-sky-200 border border-sky-500/50 shadow-sm';
+        btn300.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-white';
+      } else {
+        btn300.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer bg-emerald-500/20 text-emerald-200 border border-emerald-500/50 shadow-sm';
+        btn60.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-white';
+      }
+
+      logEvent('MASTER', 'Config', `Set polling interval = ${seconds}s (${seconds === 60 ? '1-Min Fast Polling' : '5-Min Standard Polling'})`);
+    }
+
+    function setSimSpeed(speed) {
+      sim.simSpeed = speed;
+      document.querySelectorAll('.speed-btn').forEach(btn => {
+        const active = Number(btn.dataset.speed) === speed;
+        btn.className = active
+          ? 'speed-btn px-2 py-1 rounded-lg bg-sky-500/20 text-sky-300 border border-sky-500/40 font-semibold transition cursor-pointer'
+          : 'speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer';
+      });
+    }
+
+    function switchBottomTab(tab) {
+      sim.activeBottomTab = tab;
+      ['code', 'logs', 'metrics'].forEach(t => {
+        const panel = document.getElementById(`btab-panel-${t}`);
+        const btn = document.getElementById(`btab-btn-${t}`);
+        if (t === tab) {
+          panel.classList.remove('hidden');
+          btn.className = 'btab-btn px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 bg-sky-500/20 text-sky-300 border border-sky-500/40 cursor-pointer';
+        } else {
+          panel.classList.add('hidden');
+          btn.className = 'btab-btn px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 text-slate-400 hover:text-white cursor-pointer';
+        }
+      });
+      if (tab === 'code') renderAnnotatedCode();
+      if (tab === 'logs') renderEventLogs();
+      if (tab === 'metrics') renderGroupMetricsTab();
+    }
+
+    function highlightCode(phase) {
+      sim.codeHighlightPhase = phase;
+      sim.codeHighlightTimer = 1.5;
+      const badge = document.getElementById('code-exec-badge');
+      if (badge) badge.textContent = phase;
+      if (sim.activeBottomTab === 'code') renderAnnotatedCode();
+    }
+
+    // -------------------- RENDER LEFT SIDEBAR CONTROLS --------------------
+    function renderAllControls() {
+      renderPollerNodesList();
+      renderPollerGroupsList();
+      renderQueueTypesToggles();
+    }
+
+    function renderPollerNodesList() {
+      document.getElementById('lbl-poller-count').textContent = sim.pollerNodes.length;
+      const container = document.getElementById('poller-nodes-list');
+
+      container.innerHTML = sim.pollerNodes.map(node => {
+        const busyCount = node.workers.filter(w => w.busy).length;
+        const isMaster = node.online && node.id === sim.redlock.holderId;
+
+        const cardBorder = !node.online
+          ? 'border-rose-500/45 bg-rose-950/15 opacity-75'
+          : isMaster
+            ? 'border-amber-500/60 bg-amber-950/10'
+            : 'border-slate-800 bg-slate-900/75';
+
+        const roleBadge = !node.online
+          ? `<span class="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">OFFLINE</span>`
+          : isMaster
+            ? `<span class="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/50">👑 MASTER</span>`
+            : `<span class="px-2 py-0.5 rounded font-mono text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">STANDBY</span>`;
+
+        const groupPills = sim.pollerGroups.map(g => {
+          const subscribed = node.groups.includes(g.id);
+          return `
+            <button onclick="togglePollerGroupMembership('${node.id}', ${g.id})"
+              class="px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold transition cursor-pointer border ${
+                subscribed
+                  ? 'text-white shadow-sm'
+                  : 'bg-slate-950/70 text-slate-500 border-slate-800 hover:text-slate-300'
+              }"
+              style="${subscribed ? `background:${g.color}28; border-color:${g.color}88;` : ''}">
+              G${g.id}
+            </button>
+          `;
+        }).join('');
+
+        return `
+          <div class="rounded-xl p-3 border ${cardBorder} transition-all space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0 ${!node.online ? 'bg-rose-500' : isMaster ? 'bg-amber-400' : 'bg-emerald-400'}"></span>
+                <span class="font-mono font-bold text-xs text-white truncate">${node.name}</span>
+                ${roleBadge}
+              </div>
+
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="togglePollerOnline('${node.id}')"
+                  class="px-2 py-0.5 rounded-lg font-mono text-[10px] font-semibold transition cursor-pointer border ${
+                    node.online
+                      ? 'bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border-slate-700'
+                      : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
+                  }">
+                  ${node.online ? 'Kill' : 'Start'}
+                </button>
+                ${sim.pollerNodes.length > 1 ? `
+                  <button onclick="removePollerNode('${node.id}')"
+                    class="px-1.5 py-0.5 rounded-lg text-[10px] text-slate-500 hover:text-rose-400 cursor-pointer" title="Remove Node">✕</button>
+                ` : ''}
+              </div>
+            </div>
+
+            ${isMaster ? `
+              <div class="flex items-center gap-2 text-[10px] font-mono text-amber-300 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/25">
+                <span>Redlock Lease:</span>
+                <div class="flex-1 h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                  <div class="h-full bg-amber-400 transition-all duration-100" style="width:${(sim.redlock.ttl / sim.redlock.maxTtl) * 100}%"></div>
+                </div>
+                <span>${sim.redlock.ttl.toFixed(1)}s</span>
+              </div>
+            ` : ''}
+
+            <!-- Assigned Poller Groups -->
+            <div class="flex items-center justify-between gap-2 pt-0.5">
+              <span class="text-[11px] text-slate-400">Poller Groups:</span>
+              <div class="flex flex-wrap gap-1 justify-end">${groupPills}</div>
+            </div>
+
+            <!-- Worker Threads Slider -->
+            <div class="${node.online ? '' : 'opacity-40 pointer-events-none'}">
+              <div class="flex justify-between text-[11px] mb-1">
+                <span class="text-slate-400">Worker Threads (BLPOP)</span>
+                <span class="font-mono text-emerald-400 font-semibold">${busyCount} / ${node.workerCount} active</span>
+              </div>
+              <input type="range" min="1" max="16" step="1" value="${node.workerCount}"
+                oninput="updatePollerWorkers('${node.id}', this.value)" class="w-full slider-emerald" />
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderPollerGroupsList() {
+      document.getElementById('lbl-group-count').textContent = sim.pollerGroups.length;
+      const container = document.getElementById('poller-groups-list');
+
+      container.innerHTML = sim.pollerGroups.map(grp => {
+        const depth = getGroupQueueDepth(grp);
+        const assignedPollers = sim.pollerNodes.filter(n => n.online && n.groups.includes(grp.id));
+        const noConsumerWarn = assignedPollers.length === 0;
+
+        return `
+          <div class="rounded-xl p-3 border ${noConsumerWarn ? 'border-rose-500/60 bg-rose-950/15' : 'border-slate-800 bg-slate-900/75'} space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${grp.color}"></span>
+                <div class="truncate">
+                  <div class="text-xs font-bold text-white truncate">${grp.name}</div>
+                  <div class="text-[10px] font-mono ${noConsumerWarn ? 'text-rose-400 font-bold' : 'text-slate-400'}">
+                    ${noConsumerWarn ? '⚠ 0 pollers assigned (stranded!)' : `${assignedPollers.length} poller(s): ${assignedPollers.map(p => p.name).join(', ')}`}
+                  </div>
+                </div>
+              </div>
+
+              <span class="px-2 py-0.5 rounded-md font-mono text-[11px] font-bold shrink-0 ${
+                depth > 60 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-sky-300'
+              }">
+                LLEN: ${depth}
+              </span>
+            </div>
+
+            <!-- Device Count / Queue Load Slider & Burst Buttons -->
+            <div>
+              <div class="flex items-center justify-between text-[11px] mb-1">
+                <span class="text-slate-400">Devices: <strong class="font-mono text-slate-200">${grp.deviceCount}</strong></span>
+                <div class="flex items-center gap-1">
+                  <button onclick="injectGroupBacklog(${grp.id}, 50)"
+                    class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-sky-500/20 text-sky-300 font-mono text-[10px] border border-slate-700 cursor-pointer">+50</button>
+                  <button onclick="injectGroupBacklog(${grp.id}, 200)"
+                    class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-amber-500/20 text-amber-300 font-mono text-[10px] border border-slate-700 cursor-pointer">+200</button>
+                  <button onclick="drainGroupQueues(${grp.id})"
+                    class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-rose-500/20 text-rose-300 font-mono text-[10px] border border-slate-700 cursor-pointer">Drain</button>
+                </div>
+              </div>
+              <input type="range" min="10" max="250" step="5" value="${grp.deviceCount}"
+                oninput="updateGroupDeviceCount(${grp.id}, this.value)" class="w-full" />
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderQueueTypesToggles() {
+      const container = document.getElementById('queue-types-toggles');
+      container.innerHTML = QUEUE_TYPES.map(qt => `
+        <button onclick="toggleQueueTypeEnabled('${qt.key}')"
+          class="px-2.5 py-1 rounded-lg font-mono text-[11px] font-semibold transition cursor-pointer border flex items-center gap-1.5 ${
+            qt.enabled
+              ? 'bg-slate-900 text-white border-slate-700'
+              : 'bg-slate-950/60 text-slate-500 border-slate-800/80'
+          }">
+          <span class="w-2 h-2 rounded-full" style="background:${qt.enabled ? qt.color : '#475569'}"></span>
+          <span>${qt.label}</span>
+        </button>
+      `).join('');
+    }
+
+    // -------------------- SIMULATION TICK LOOP --------------------
+    function stepSimulation(dt) {
+      if (sim.simSpeed === 0) return;
+      const simDt = dt * sim.simSpeed;
+      sim.simTime += simDt;
+
+      // Decay code highlight
+      if (sim.codeHighlightTimer > 0) {
+        sim.codeHighlightTimer -= dt;
+        if (sim.codeHighlightTimer <= 0 && sim.codeHighlightPhase !== 'WORKER') {
+          highlightCode('WORKER');
+        }
+      }
+
+      // 1. REDLOCK MASTER LEASE & FAILOVER ELECTION
+      const currentMaster = sim.pollerNodes.find(n => n.id === sim.redlock.holderId && n.online);
+      const failoverBanner = document.getElementById('failover-banner');
+
+      if (currentMaster) {
+        failoverBanner.classList.add('hidden');
+        sim.redlock.ttl -= simDt;
+        sim.redlock.renewTimer -= simDt;
+
+        // Master renews its Redlock lease every 5s
+        if (sim.redlock.renewTimer <= 0) {
+          sim.redlock.ttl = sim.redlock.maxTtl;
+          sim.redlock.renewTimer = sim.redlock.renewInterval;
+          if (Math.random() < 0.35) {
+            logEvent('LOCK', currentMaster.name, `Renewed Redlock ${sim.redlock.key} -> TTL reset to ${sim.redlock.maxTtl}s`);
+          }
+        }
+
+        // Only the Master Dispatcher runs scheduling timers!
+        QUEUE_TYPES.forEach(qt => {
+          if (!qt.enabled) return;
+          sim.timers[qt.key] -= simDt;
+          if (sim.timers[qt.key] <= 0) {
+            dispatchQueueType(qt.key, false);
+            sim.timers[qt.key] = qt.usesGlobalFreq ? sim.pollingInterval : qt.freq;
+          }
+        });
+      } else {
+        // Master is offline/crashed! Count down remaining Redlock TTL until Standby wins election
+        if (sim.redlock.ttl > 0) {
+          sim.redlock.ttl = Math.max(0, sim.redlock.ttl - simDt);
+          failoverBanner.classList.remove('hidden');
+          document.getElementById('failover-ttl-badge').textContent = `TTL: ${sim.redlock.ttl.toFixed(1)}s`;
+        } else {
+          failoverBanner.classList.add('hidden');
+          // Standby pollers attempt lock acquisition
+          const onlineStandbys = sim.pollerNodes.filter(n => n.online);
+          if (onlineStandbys.length > 0) {
+            const promoted = electMasterNode(onlineStandbys[0]);
+            if (promoted) {
+              logEvent('FAILOVER', promoted.name, `Redlock TTL expired! Standby node ${promoted.name} won election and took over Master dispatching.`);
+            }
+          }
+        }
+      }
+
+      // 2. WORKER THREADS (BLPOP FROM SUBSCRIBED POLLER GROUPS)
+      sim.pollerNodes.forEach(node => {
+        if (!node.online) return;
+
+        node.workers.forEach(w => {
+          if (w.busy) {
+            w.progress += simDt / w.duration;
+            if (w.progress >= 1.0) {
+              // Complete job -> write to RRD / MariaDB
+              const grp = sim.pollerGroups.find(g => g.id === w.job.groupId);
+              if (grp) {
+                grp.totalCompleted++;
+                grp.totalWaitTime += Math.max(0, sim.simTime - w.job.enqueuedAt);
+                grp.completedSamples++;
+              }
+              node.jobsProcessed++;
+              sim.totalCompleted++;
+              sim.recentCompletionTimes.push(sim.simTime);
+
+              if (grp) {
+                sim.particles.push({
+                  kind: 'STORAGE',
+                  fromPollerId: node.id,
+                  toGroupId: grp.id,
+                  color: '#10b981',
+                  progress: 0,
+                  speed: 2.8
+                });
+              }
+
+              w.busy = false;
+              w.job = null;
+              w.progress = 0;
+            }
+          } else if (node.groups.length > 0) {
+            // Try BLPOP across subscribed Poller Groups (round-robin / highest backlog first)
+            let chosenGroup = null;
+            let chosenQType = null;
+            let bestLen = 0;
+
+            node.groups.forEach(gid => {
+              const grp = sim.pollerGroups.find(g => g.id === gid);
+              if (!grp) return;
+              QUEUE_TYPES.forEach(qt => {
+                const len = grp.queues[qt.key].length;
+                if (len > bestLen) {
+                  bestLen = len;
+                  chosenGroup = grp;
+                  chosenQType = qt;
+                }
+              });
+            });
+
+            if (chosenGroup && chosenQType && bestLen > 0) {
+              const job = chosenGroup.queues[chosenQType.key].shift();
+              w.busy = true;
+              w.job = job;
+              w.progress = 0;
+              const jitter = 0.75 + Math.random() * 0.5;
+              w.duration = Math.max(0.18, ((sim.baseLatencyMs * chosenQType.latMult) / 1000) * jitter);
+
+              sim.particles.push({
+                kind: 'BLPOP',
+                fromGroupId: chosenGroup.id,
+                toPollerId: node.id,
+                color: chosenQType.color,
+                progress: 0,
+                speed: 3.1
+              });
+
+              if (Math.random() < 0.06) {
+                logEvent('WORKER', node.name, `BLPOP librenms:queue:${chosenQType.key}:group_${chosenGroup.id} -> device #${job.id}`);
+              }
+            }
+          }
+        });
+      });
+
+      // 3. ADVANCE PARTICLES
+      for (let i = sim.particles.length - 1; i >= 0; i--) {
+        const p = sim.particles[i];
+        p.progress += dt * p.speed * Math.max(0.85, Math.sqrt(sim.simSpeed));
+        if (p.progress >= 1.0) {
+          if (p.kind === 'STORAGE') {
+            sim.storagePulses.push({ groupId: p.toGroupId, progress: 0 });
+          }
+          sim.particles.splice(i, 1);
+        }
+      }
+
+      for (let i = sim.storagePulses.length - 1; i >= 0; i--) {
+        sim.storagePulses[i].progress += dt * 3.0;
+        if (sim.storagePulses[i].progress >= 1.0) sim.storagePulses.splice(i, 1);
+      }
+
+      // Prune completions > 15s old for throughput window
+      while (sim.recentCompletionTimes.length > 0 && sim.simTime - sim.recentCompletionTimes[0] > 15) {
+        sim.recentCompletionTimes.shift();
+      }
+    }
+
+    // -------------------- UPDATE DASHBOARD KPIS & TABS --------------------
+    let uiRefreshTimer = 0;
+    function updateDashboard(dt) {
+      const master = sim.pollerNodes.find(n => n.id === sim.redlock.holderId && n.online);
+      const hdrPill = document.getElementById('hdr-master-pill');
+      const kpiMasterName = document.getElementById('kpi-master-name');
+      const kpiMasterTtl = document.getElementById('kpi-master-ttl');
+      const kpiMasterBar = document.getElementById('kpi-master-ttl-bar');
+
+      if (master) {
+        hdrPill.textContent = `👑 Master: ${master.name}`;
+        hdrPill.className = 'px-2 py-0.5 rounded-md text-[11px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/40 font-semibold';
+        kpiMasterName.textContent = master.name;
+        kpiMasterName.className = 'text-lg sm:text-xl font-bold font-mono text-amber-300 truncate';
+        kpiMasterTtl.textContent = `TTL ${sim.redlock.ttl.toFixed(1)}s`;
+        kpiMasterTtl.className = 'text-[11px] font-mono text-emerald-400 shrink-0';
+        kpiMasterBar.style.width = `${(sim.redlock.ttl / sim.redlock.maxTtl) * 100}%`;
+        kpiMasterBar.className = 'h-full bg-amber-400 transition-all duration-100';
+      } else {
+        hdrPill.textContent = `⚠ Master: ELECTING...`;
+        hdrPill.className = 'px-2 py-0.5 rounded-md text-[11px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold';
+        kpiMasterName.textContent = 'ELECTING...';
+        kpiMasterName.className = 'text-lg sm:text-xl font-bold font-mono text-rose-400 truncate';
+        kpiMasterTtl.textContent = `TTL ${sim.redlock.ttl.toFixed(1)}s`;
+        kpiMasterTtl.className = 'text-[11px] font-mono text-rose-400 shrink-0';
+        kpiMasterBar.style.width = `${(sim.redlock.ttl / sim.redlock.maxTtl) * 100}%`;
+        kpiMasterBar.className = 'h-full bg-rose-500 transition-all duration-100';
+      }
+
+      // Header Cycle Countdown
+      const nextPollerSec = Math.max(0, sim.timers.poller);
+      document.getElementById('hdr-cycle-countdown').textContent = `${nextPollerSec.toFixed(1)}s`;
+      const cyclePct = Math.max(0, Math.min(100, ((sim.pollingInterval - nextPollerSec) / sim.pollingInterval) * 100));
+      document.getElementById('hdr-cycle-bar').style.width = `${cyclePct}%`;
+
+      // Queue Depths
+      let totalQueued = 0;
+      let pollerQueued = 0;
+      sim.pollerGroups.forEach(g => {
+        totalQueued += getGroupQueueDepth(g);
+        pollerQueued += g.queues.poller.length;
+      });
+      document.getElementById('kpi-total-queued').textContent = totalQueued;
+      document.getElementById('kpi-active-queues').textContent = `${sim.pollerGroups.length * QUEUE_TYPES.filter(q => q.enabled).length} queues`;
+      document.getElementById('kpi-queue-breakdown').textContent = `poller: ${pollerQueued} • other: ${totalQueued - pollerQueued}`;
+
+      // Cluster Workers
+      let totalWorkers = 0;
+      let busyWorkers = 0;
+      sim.pollerNodes.forEach(n => {
+        if (!n.online) return;
+        totalWorkers += n.workers.length;
+        busyWorkers += n.workers.filter(w => w.busy).length;
+      });
+      const utilPct = totalWorkers > 0 ? Math.round((busyWorkers / totalWorkers) * 100) : 0;
+      document.getElementById('kpi-cluster-workers').textContent = `${busyWorkers} / ${totalWorkers}`;
+      document.getElementById('kpi-worker-util').textContent = `${utilPct}% busy`;
+      document.getElementById('kpi-worker-bar').style.width = `${utilPct}%`;
+
+      // Throughput
+      const jobsPerSec = sim.recentCompletionTimes.length / 15;
+      const devPerMin = Math.round(jobsPerSec * 60);
+      document.getElementById('kpi-devices-per-min').innerHTML = `${devPerMin}<span class="text-xs font-normal text-slate-400"> dev/m</span>`;
+      document.getElementById('kpi-jobs-per-sec').textContent = `${jobsPerSec.toFixed(1)}/s`;
+      document.getElementById('kpi-total-done').textContent = sim.totalCompleted;
+      document.getElementById('kpi-elections').textContent = sim.redlock.electionsCount;
+
+      uiRefreshTimer += dt;
+      if (uiRefreshTimer >= 0.45) {
+        uiRefreshTimer = 0;
+        renderAllControls();
+        if (sim.activeBottomTab === 'code') renderLiveRuntimeVars();
+        if (sim.activeBottomTab === 'metrics') renderGroupMetricsTab();
+        if (sim.selectedCanvasItem) updateCanvasInspector();
+      }
+    }
+
+    // -------------------- ANNOTATED CODE & LIVE STATE TAB --------------------
+    const PYTHON_CODE_LINES = [
+      { phase: 'MASTER',   code: 'class Service:' },
+      { phase: 'MASTER',   code: '    def __init__(self, poller_name, poller_groups=[0]):' },
+      { phase: 'MASTER',   code: '        self.poller_name = poller_name' },
+      { phase: 'MASTER',   code: '        self.poller_groups = poller_groups  # Subscribed groups' },
+      { phase: 'MASTER',   code: '        self.is_master = False' },
+      { phase: 'MASTER',   code: '' },
+      { phase: 'MASTER',   code: '    def _acquire_or_renew_master_lock(self):' },
+      { phase: 'MASTER',   code: '        # Redlock distributed mutex across all poller nodes' },
+      { phase: 'MASTER',   code: '        lock = self.redlock.lock("librenms:dispatch:master", ttl=15000)' },
+      { phase: 'MASTER',   code: '        self.is_master = bool(lock)' },
+      { phase: 'DISPATCH', code: '' },
+      { phase: 'DISPATCH', code: '    def dispatch(self, queue_type="poller"):  # 60s or 300s timer' },
+      { phase: 'DISPATCH', code: '        if not self.is_master:' },
+      { phase: 'DISPATCH', code: '            return  # Standby nodes only run BLPOP workers' },
+      { phase: 'DISPATCH', code: '        for device in db.get_due_devices(queue_type):' },
+      { phase: 'DISPATCH', code: '            q_key = f"librenms:queue:{queue_type}:group_{device.poller_group}"' },
+      { phase: 'DISPATCH', code: '            self.redis.rpush(q_key, device.id)' },
+      { phase: 'WORKER',   code: '' },
+      { phase: 'WORKER',   code: '    def _worker_loop(self):' },
+      { phase: 'WORKER',   code: '        # Listen ONLY to Redis queues for this node\'s poller_groups' },
+      { phase: 'WORKER',   code: '        keys = [f"librenms:queue:{t}:group_{g}"' },
+      { phase: 'WORKER',   code: '                for g in self.poller_groups for t in self.queue_types]' },
+      { phase: 'WORKER',   code: '        while self.running:' },
+      { phase: 'WORKER',   code: '            queue_key, device_id = self.redis.blpop(keys, timeout=5)' },
+      { phase: 'WORKER',   code: '            self.execute_job(queue_key, device_id)  # RRD + MariaDB' }
+    ];
+
+    function renderAnnotatedCode() {
+      const box = document.getElementById('annotated-code-box');
+      box.innerHTML = PYTHON_CODE_LINES.map((line, i) => {
+        let cls = '';
+        if (line.phase === sim.codeHighlightPhase) {
+          if (line.phase === 'MASTER') cls = 'hl-master';
+          else if (line.phase === 'DISPATCH') cls = 'hl-dispatch';
+          else cls = 'hl-worker';
+        }
+        const num = String(i + 1).padStart(2, '0');
+        const formatted = escapeHtml(line.code)
+          .replace(/\b(class|def|if|not|return|for|in|while)\b/g, '<span class="text-purple-400 font-semibold">$1</span>')
+          .replace(/\b(self|True|False)\b/g, '<span class="text-sky-300">$1</span>')
+          .replace(/(#.*)$/g, '<span class="text-slate-500 italic">$1</span>')
+          .replace(/(".*?")/g, '<span class="text-emerald-300">$1</span>');
+        return `<div class="code-line ${cls} whitespace-pre"><span class="text-slate-600 select-none mr-2">${num}</span>${formatted || ' '}</div>`;
+      }).join('');
+      renderLiveRuntimeVars();
+    }
+
+    function renderLiveRuntimeVars() {
+      const box = document.getElementById('live-python-vars');
+      if (!box) return;
+      const master = sim.pollerNodes.find(n => n.id === sim.redlock.holderId && n.online);
+      const onlineNodes = sim.pollerNodes.filter(n => n.online);
+      const totalWorkers = onlineNodes.reduce((s, n) => s + n.workers.length, 0);
+      const busyWorkers = onlineNodes.reduce((s, n) => s + n.workers.filter(w => w.busy).length, 0);
+
+      box.innerHTML = `
+        <div class="flex justify-between"><span class="text-slate-400">master_node:</span><span class="text-amber-300 font-bold">"${master ? master.name : 'None (Electing)'}"</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">redlock_ttl:</span><span class="text-emerald-400">${sim.redlock.ttl.toFixed(1)}s / ${sim.redlock.maxTtl}s</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">polling_interval:</span><span class="text-sky-300">${sim.pollingInterval}s (${sim.pollingInterval === 60 ? '1m' : '5m'})</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">online_pollers:</span><span class="text-white">${onlineNodes.length} / ${sim.pollerNodes.length}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">poller_groups:</span><span class="text-purple-300">[${sim.pollerGroups.map(g => g.id).join(', ')}]</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">active_workers:</span><span class="text-emerald-300">${busyWorkers} / ${totalWorkers} threads</span></div>
+      `;
+    }
+
+    // -------------------- GROUP LOAD & THROUGHPUT METRICS TAB --------------------
+    function renderGroupMetricsTab() {
+      const pollersBox = document.getElementById('metrics-pollers-box');
+      const groupsBox = document.getElementById('metrics-groups-box');
+      if (!pollersBox || !groupsBox) return;
+
+      const maxPollerJobs = Math.max(1, ...sim.pollerNodes.map(n => n.jobsProcessed));
+      pollersBox.innerHTML = sim.pollerNodes.map(n => {
+        const sharePct = sim.totalCompleted > 0 ? Math.round((n.jobsProcessed / sim.totalCompleted) * 100) : 0;
+        const barPct = Math.round((n.jobsProcessed / maxPollerJobs) * 100);
+        return `
+          <div>
+            <div class="flex justify-between font-mono text-[11px] mb-1">
+              <span class="text-white font-semibold">${n.name} ${n.isMaster ? '👑' : ''} <span class="text-slate-400">[G${n.groups.join(',G')}]</span></span>
+              <span class="text-sky-300">${n.jobsProcessed} jobs (${sharePct}%)</span>
+            </div>
+            <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+              <div class="h-full ${n.online ? 'bg-sky-400' : 'bg-rose-500'} transition-all duration-200" style="width:${barPct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      groupsBox.innerHTML = sim.pollerGroups.map(g => {
+        const depth = getGroupQueueDepth(g);
+        const avgWait = g.completedSamples > 0 ? (g.totalWaitTime / g.completedSamples).toFixed(2) : '0.00';
+        const consumers = sim.pollerNodes.filter(n => n.online && n.groups.includes(g.id)).length;
+        return `
+          <div class="p-2 rounded-lg bg-slate-900/80 border border-slate-800 flex items-center justify-between font-mono text-[11px]">
+            <div>
+              <div class="font-bold text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full" style="background:${g.color}"></span>
+                <span>${g.name}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">${consumers} active poller(s) • Done: ${g.totalCompleted}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-sky-300 font-bold">LLEN: ${depth}</div>
+              <div class="text-[10px] text-emerald-400">Avg Wait: ${avgWait}s</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // -------------------- 3-ZONE HTML5 CANVAS VISUALIZATION --------------------
+    const canvas = document.getElementById('cluster-canvas');
+    const ctx = canvas.getContext('2d');
+    const canvasHitBoxes = [];
+
+    function resizeClusterCanvas() {
+      const container = document.getElementById('canvas-container');
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(320, Math.round(rect.width * dpr));
+      canvas.height = Math.max(340, Math.round(rect.height * dpr));
+    }
+
+    function roundRect(c, x, y, w, h, r) {
+      c.beginPath();
+      c.moveTo(x + r, y);
+      c.arcTo(x + w, y, x + w, y + h, r);
+      c.arcTo(x + w, y + h, x, y + h, r);
+      c.arcTo(x, y + h, x, y, r);
+      c.arcTo(x, y, x + w, y, r);
+      c.closePath();
+    }
+
+    function drawCurve(c, x1, y1, x2, y2, stroke, width = 1.4, dashed = false) {
+      const midX = (x1 + x2) * 0.5;
+      c.save();
+      c.beginPath();
+      if (dashed) c.setLineDash([4, 4]);
+      c.moveTo(x1, y1);
+      c.bezierCurveTo(midX, y1, midX, y2, x2, y2);
+      c.strokeStyle = stroke;
+      c.lineWidth = width;
+      c.stroke();
+      c.restore();
+    }
+
+    function sampleCurve(t, x1, y1, x2, y2) {
+      const midX = (x1 + x2) * 0.5;
+      const mt = 1 - t;
+      return {
+        x: mt * mt * mt * x1 + 3 * mt * mt * t * midX + 3 * mt * t * t * midX + t * t * t * x2,
+        y: mt * mt * mt * y1 + 3 * mt * mt * t * y1 + 3 * mt * t * t * y2 + t * t * t * y2
+      };
+    }
+
+    function renderClusterCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.width / dpr;
+      const H = canvas.height / dpr;
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, W, H);
+      canvasHitBoxes.length = 0;
+
+      // Zone Boundaries (Left: Poller Nodes, Center: Redis Broker, Right: Poller Groups & RRD/DB)
+      const z1X = W * 0.17;
+      const z2X = W * 0.50;
+      const z3X = W * 0.83;
+
+      // Subtle Zone Column Backgrounds
+      const zoneTop = 36;
+      const zoneH = H - 48;
+      [
+        { cx: z1X, w: W * 0.29, label: 'ZONE 1: POLLER NODES', sub: 'Master Scheduler + BLPOP Workers' },
+        { cx: z2X, w: W * 0.30, label: 'ZONE 2: REDIS BROKER', sub: 'Redlock + Per-Group FIFO Queues' },
+        { cx: z3X, w: W * 0.29, label: 'ZONE 3: POLLER GROUPS & RRD/DB', sub: 'Target Devices & Metrics Storage' }
+      ].forEach(z => {
+        roundRect(ctx, z.cx - z.w / 2, zoneTop, z.w, zoneH, 12);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.45)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(51, 65, 85, 0.45)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '700 10px "JetBrains Mono", monospace';
+        ctx.fillText(z.label, z.cx, 17);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '400 9px "JetBrains Mono", monospace';
+        ctx.fillText(z.sub, z.cx, 29);
+      });
+
+      const pollerAnchors = new Map();
+      const redisQueueAnchors = new Map();
+      const groupTargetAnchors = new Map();
+
+      // ==================== ZONE 1: POLLER NODES ====================
+      const pCount = Math.max(1, sim.pollerNodes.length);
+      const pAreaTop = zoneTop + 12;
+      const pAreaH = zoneH - 24;
+      const pSlotH = pAreaH / pCount;
+      const pCardW = Math.min(205, W * 0.26);
+      const pCardH = Math.min(82, pSlotH - 10);
+
+      sim.pollerNodes.forEach((node, idx) => {
+        const cy = pAreaTop + pSlotH * (idx + 0.5);
+        const x = z1X - pCardW / 2;
+        const y = cy - pCardH / 2;
+        const isMaster = node.online && node.id === sim.redlock.holderId;
+        const isSel = sim.selectedCanvasItem && sim.selectedCanvasItem.kind === 'poller' && sim.selectedCanvasItem.id === node.id;
+
+        pollerAnchors.set(node.id, { rightX: x + pCardW, y: cy });
+        canvasHitBoxes.push({ kind: 'poller', id: node.id, x, y, w: pCardW, h: pCardH });
+
+        roundRect(ctx, x, y, pCardW, pCardH, 10);
+        ctx.fillStyle = !node.online
+          ? 'rgba(127, 29, 29, 0.22)'
+          : isMaster
+            ? 'rgba(120, 53, 15, 0.24)'
+            : '#0f172a';
+        ctx.fill();
+        ctx.strokeStyle = isSel
+          ? '#ffffff'
+          : !node.online
+            ? '#f43f5e'
+            : isMaster
+              ? '#f59e0b'
+              : '#334155';
+        ctx.lineWidth = isSel || isMaster ? 1.8 : 1.2;
+        ctx.stroke();
+
+        // Node Name & Master Crown / Offline Badge
+        ctx.textAlign = 'left';
+        ctx.fillStyle = node.online ? '#f8fafc' : '#fda4af';
+        ctx.font = '700 11px "JetBrains Mono", monospace';
+        ctx.fillText(`${isMaster ? '👑 ' : ''}${node.name}`, x + 9, y + 16);
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = !node.online ? '#f43f5e' : isMaster ? '#fbbf24' : '#34d399';
+        ctx.font = '700 9px "JetBrains Mono", monospace';
+        ctx.fillText(!node.online ? 'OFFLINE' : isMaster ? 'MASTER' : 'STANDBY', x + pCardW - 9, y + 16);
+
+        // Subscribed Group Pills
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '600 9px "JetBrains Mono", monospace';
+        const grpLabel = node.groups.length > 0 ? `Groups: [${node.groups.map(g => 'G' + g).join(',')}]` : 'Groups: NONE';
+        ctx.fillText(grpLabel, x + 9, y + 30);
+
+        // Redlock TTL bar on Master Node
+        if (isMaster && pCardH >= 54) {
+          const barW = pCardW - 18;
+          ctx.fillStyle = '#1e293b';
+          ctx.fillRect(x + 9, y + 35, barW, 4);
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(x + 9, y + 35, barW * (sim.redlock.ttl / sim.redlock.maxTtl), 4);
+        }
+
+        // Worker Thread LED Slots
+        if (node.online && pCardH >= 52) {
+          const ledStartY = y + (isMaster ? 45 : 38);
+          const cols = Math.min(8, node.workers.length);
+          const ledW = Math.min(18, (pCardW - 18 - (cols - 1) * 3) / Math.max(1, cols));
+          const ledH = Math.min(9, pCardH - (ledStartY - y) - 7);
+          node.workers.forEach((w, wIdx) => {
+            const col = wIdx % 8;
+            const row = Math.floor(wIdx / 8);
+            if (row > 1) return;
+            const lx = x + 9 + col * (ledW + 3);
+            const ly = ledStartY + row * (ledH + 3);
+            ctx.fillStyle = w.busy ? '#10b981' : '#1e293b';
+            ctx.fillRect(lx, ly, ledW, Math.max(4, ledH));
+          });
+        }
+      });
+
+      // ==================== ZONE 2: REDIS BROKER (REDLOCK + GROUP QUEUES) ====================
+      const rBoxW = Math.min(215, W * 0.27);
+      const rBoxX = z2X - rBoxW / 2;
+
+      // Top Redlock Header Card inside Redis Zone
+      const lockCardY = zoneTop + 12;
+      const lockCardH = 42;
+      roundRect(ctx, rBoxX, lockCardY, rBoxW, lockCardH, 9);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = sim.redlock.holderId ? 'rgba(245, 158, 11, 0.55)' : 'rgba(244, 63, 94, 0.65)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = '700 9.5px "JetBrains Mono", monospace';
+      ctx.fillText('🔒 librenms:dispatch:master', rBoxX + 9, lockCardY + 15);
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '500 9px "JetBrains Mono", monospace';
+      const holderLabel = sim.redlock.holderId
+        ? `Owner: ${sim.redlock.holderId} (${sim.redlock.ttl.toFixed(1)}s)`
+        : `EXPIRED — Electing (${sim.redlock.ttl.toFixed(1)}s)`;
+      ctx.fillText(holderLabel, rBoxX + 9, lockCardY + 30);
+
+      // Per-Group Redis Queues Stacked Below Redlock Card
+      const gCount = Math.max(1, sim.pollerGroups.length);
+      const qAreaTop = lockCardY + lockCardH + 10;
+      const qAreaH = zoneH - (lockCardH + 34);
+      const qSlotH = qAreaH / gCount;
+      const qCardH = Math.min(68, qSlotH - 8);
+
+      sim.pollerGroups.forEach((grp, idx) => {
+        const cy = qAreaTop + qSlotH * (idx + 0.5);
+        const y = cy - qCardH / 2;
+        const depth = getGroupQueueDepth(grp);
+        const isSel = sim.selectedCanvasItem && sim.selectedCanvasItem.kind === 'group' && sim.selectedCanvasItem.id === grp.id;
+
+        redisQueueAnchors.set(grp.id, { leftX: rBoxX, rightX: rBoxX + rBoxW, y: cy });
+        canvasHitBoxes.push({ kind: 'group', id: grp.id, x: rBoxX, y, w: rBoxW, h: qCardH });
+
+        roundRect(ctx, rBoxX, y, rBoxW, qCardH, 9);
+        ctx.fillStyle = '#0f172a';
+        ctx.fill();
+        ctx.strokeStyle = isSel ? '#ffffff' : grp.color + '88';
+        ctx.lineWidth = isSel ? 1.8 : 1.3;
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '700 10px "JetBrains Mono", monospace';
+        ctx.fillText(`queue:*:${grp.shortName}`, rBoxX + 9, y + 15);
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = depth > 60 ? '#fbbf24' : grp.color;
+        ctx.font = '700 10px "JetBrains Mono", monospace';
+        ctx.fillText(`LLEN:${depth}`, rBoxX + rBoxW - 9, y + 15);
+
+        // Multi-Queue Segmented Fill Bar
+        const barX = rBoxX + 9;
+        const barY = y + 23;
+        const barW = rBoxW - 18;
+        const barH = Math.max(10, qCardH - 32);
+
+        roundRect(ctx, barX, barY, barW, barH, 5);
+        ctx.fillStyle = '#070a12';
+        ctx.fill();
+
+        const maxVisualCapacity = 160;
+        let offsetX = 0;
+        QUEUE_TYPES.forEach(qt => {
+          const qLen = grp.queues[qt.key].length;
+          if (qLen <= 0) return;
+          const segW = Math.min(barW - offsetX, (qLen / maxVisualCapacity) * barW);
+          if (segW > 0.5) {
+            ctx.fillStyle = qt.color;
+            ctx.fillRect(barX + offsetX, barY + 2, segW, barH - 4);
+            offsetX += segW;
+          }
+        });
+      });
+
+      // ==================== ZONE 3: POLLER GROUPS & RRD/DB STORAGE ====================
+      const tCardW = Math.min(205, W * 0.26);
+      const tCardX = z3X - tCardW / 2;
+
+      sim.pollerGroups.forEach((grp, idx) => {
+        const cy = qAreaTop + qSlotH * (idx + 0.5);
+        const y = cy - qCardH / 2;
+        const consumers = sim.pollerNodes.filter(n => n.online && n.groups.includes(grp.id));
+        const pulsing = sim.storagePulses.some(p => p.groupId === grp.id);
+
+        groupTargetAnchors.set(grp.id, { leftX: tCardX, y: cy });
+        canvasHitBoxes.push({ kind: 'group', id: grp.id, x: tCardX, y, w: tCardW, h: qCardH });
+
+        roundRect(ctx, tCardX, y, tCardW, qCardH, 9);
+        ctx.fillStyle = pulsing ? 'rgba(16, 185, 129, 0.12)' : '#0f172a';
+        ctx.fill();
+        ctx.strokeStyle = consumers.length === 0 ? '#f43f5e' : pulsing ? '#10b981' : '#334155';
+        ctx.lineWidth = pulsing ? 1.8 : 1.2;
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '700 10px "JetBrains Mono", monospace';
+        ctx.fillText(grp.name.slice(0, 22), tCardX + 9, y + 15);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '500 9px "JetBrains Mono", monospace';
+        ctx.fillText(`Devices: ${grp.deviceCount} • Done: ${grp.totalCompleted}`, tCardX + 9, y + 30);
+
+        ctx.fillStyle = consumers.length === 0 ? '#f43f5e' : '#34d399';
+        ctx.font = '600 9px "JetBrains Mono", monospace';
+        ctx.fillText(
+          consumers.length === 0 ? '⚠ No Pollers Subscribed' : `Pollers: ${consumers.map(c => c.name).join(', ')}`,
+          tCardX + 9,
+          y + 44
+        );
+      });
+
+      // ==================== TOPOLOGY CONNECTION SPLINES ====================
+      const masterNode = sim.pollerNodes.find(n => n.online && n.id === sim.redlock.holderId);
+      if (masterNode && pollerAnchors.has(masterNode.id)) {
+        const mPos = pollerAnchors.get(masterNode.id);
+        // Master -> Redlock Card
+        drawCurve(ctx, mPos.rightX, mPos.y, rBoxX, lockCardY + lockCardH / 2, 'rgba(245, 158, 11, 0.45)', 1.6, true);
+        // Master -> Every Group Redis Queue (RPUSH)
+        sim.pollerGroups.forEach(grp => {
+          const qPos = redisQueueAnchors.get(grp.id);
+          if (qPos) {
+            drawCurve(ctx, mPos.rightX, mPos.y, qPos.leftX, qPos.y, 'rgba(245, 158, 11, 0.22)', 1.3);
+          }
+        });
+      }
+
+      // Subscribed Poller Nodes <-> Group Redis Queues (BLPOP)
+      sim.pollerNodes.forEach(node => {
+        if (!node.online) return;
+        const pPos = pollerAnchors.get(node.id);
+        if (!pPos) return;
+        node.groups.forEach(gid => {
+          const qPos = redisQueueAnchors.get(gid);
+          const grp = sim.pollerGroups.find(g => g.id === gid);
+          if (qPos && grp) {
+            drawCurve(ctx, pPos.rightX, pPos.y, qPos.leftX, qPos.y, grp.color + '44', 1.4);
+          }
+        });
+      });
+
+      // Redis Group Queues -> Target Device / RRD Storage
+      sim.pollerGroups.forEach(grp => {
+        const qPos = redisQueueAnchors.get(grp.id);
+        const tPos = groupTargetAnchors.get(grp.id);
+        if (qPos && tPos) {
+          drawCurve(ctx, qPos.rightX, qPos.y, tPos.leftX, tPos.y, 'rgba(16, 185, 129, 0.25)', 1.4);
+        }
+      });
+
+      // ==================== ANIMATED DATA PACKETS ====================
+      sim.particles.forEach(p => {
+        if (p.progress < 0) return;
+        let pt = null;
+
+        if (p.kind === 'RPUSH') {
+          const from = pollerAnchors.get(p.fromPollerId);
+          const to = redisQueueAnchors.get(p.toGroupId);
+          if (from && to) pt = sampleCurve(p.progress, from.rightX, from.y, to.leftX, to.y);
+        } else if (p.kind === 'BLPOP') {
+          const from = redisQueueAnchors.get(p.fromGroupId);
+          const to = pollerAnchors.get(p.toPollerId);
+          if (from && to) pt = sampleCurve(p.progress, from.leftX, from.y, to.rightX, to.y);
+        } else if (p.kind === 'STORAGE') {
+          const from = redisQueueAnchors.get(p.toGroupId);
+          const to = groupTargetAnchors.get(p.toGroupId);
+          if (from && to) pt = sampleCurve(p.progress, from.rightX, from.y, to.leftX, to.y);
+        }
+
+        if (pt) {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 3.4, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 6.5, 0, Math.PI * 2);
+          ctx.fillStyle = p.color + '33';
+          ctx.fill();
+        }
+      });
+
+      ctx.restore();
+    }
+
+    // Canvas Click Selection Inspector
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      for (let i = canvasHitBoxes.length - 1; i >= 0; i--) {
+        const box = canvasHitBoxes[i];
+        if (x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) {
+          sim.selectedCanvasItem = { kind: box.kind, id: box.id };
+          updateCanvasInspector();
+          return;
+        }
+      }
+      clearCanvasSelection();
+    });
+
+    function updateCanvasInspector() {
+      const panel = document.getElementById('canvas-inspector');
+      const title = document.getElementById('insp-title');
+      const content = document.getElementById('insp-content');
+      if (!sim.selectedCanvasItem) {
+        panel.classList.add('hidden');
+        return;
+      }
+      panel.classList.remove('hidden');
+
+      if (sim.selectedCanvasItem.kind === 'poller') {
+        const n = sim.pollerNodes.find(item => item.id === sim.selectedCanvasItem.id);
+        if (!n) return clearCanvasSelection();
+        const isMaster = n.online && n.id === sim.redlock.holderId;
+        const busy = n.workers.filter(w => w.busy).length;
+        title.textContent = `${isMaster ? '👑 ' : ''}${n.name}`;
+        content.innerHTML = `
+          <div class="flex justify-between"><span class="text-slate-400">Role:</span><span class="${isMaster ? 'text-amber-300 font-bold' : 'text-slate-200'}">${!n.online ? 'OFFLINE' : isMaster ? 'MASTER DISPATCHER' : 'STANDBY WORKER'}</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Subscribed Groups:</span><span class="text-sky-300">[${n.groups.join(', ')}]</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">BLPOP Threads:</span><span class="text-emerald-400">${busy} / ${n.workerCount} active</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Jobs Completed:</span><span class="text-white font-bold">${n.jobsProcessed}</span></div>
+        `;
+      } else if (sim.selectedCanvasItem.kind === 'group') {
+        const g = sim.pollerGroups.find(item => item.id === sim.selectedCanvasItem.id);
+        if (!g) return clearCanvasSelection();
+        const consumers = sim.pollerNodes.filter(n => n.online && n.groups.includes(g.id));
+        title.textContent = g.name;
+        content.innerHTML = `
+          <div class="flex justify-between"><span class="text-slate-400">Redis Namespace:</span><span class="text-sky-300">librenms:queue:*:${g.shortName}</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Queue Depth (LLEN):</span><span class="text-white font-bold">${getGroupQueueDepth(g)}</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Assigned Pollers:</span><span class="text-emerald-400">${consumers.length > 0 ? consumers.map(c => c.name).join(', ') : 'NONE'}</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Total Completed:</span><span class="text-slate-200">${g.totalCompleted}</span></div>
+        `;
+      }
+    }
+
+    function clearCanvasSelection() {
+      sim.selectedCanvasItem = null;
+      document.getElementById('canvas-inspector').classList.add('hidden');
+    }
+
+    // -------------------- MAIN ANIMATION LOOP & RESET --------------------
+    let lastFrameTs = performance.now();
+    function animationLoop(now) {
+      const dt = Math.min((now - lastFrameTs) / 1000, 0.05);
+      lastFrameTs = now;
+
+      stepSimulation(dt);
+      updateDashboard(dt);
+      renderClusterCanvas();
+
+      requestAnimationFrame(animationLoop);
+    }
+
+    function resetSimulation() {
+      sim.simTime = 0;
+      sim.totalCompleted = 0;
+      sim.recentCompletionTimes = [];
+      sim.particles = [];
+      sim.storagePulses = [];
+      sim.logs = [];
+      sim.nextPollerNum = 4;
+      sim.nextGroupId = 3;
+      sim.redlock.holderId = null;
+      sim.redlock.ttl = 0;
+      sim.redlock.electionsCount = 0;
+
+      initClusterData();
+      setPollingInterval(60);
+      setSimSpeed(5);
+      electMasterNode(sim.pollerNodes[0]);
+      renderAllControls();
+      renderAnnotatedCode();
+      triggerPollCycleNow();
+    }
+
+    window.addEventListener('resize', resizeClusterCanvas);
+    new ResizeObserver(() => resizeClusterCanvas()).observe(document.getElementById('canvas-container'));
+
+    window.onload = function () {
+      resizeClusterCanvas();
+      initClusterData();
+      setPollingInterval(60);
+      setSimSpeed(5);
+      electMasterNode(sim.pollerNodes[0]);
+      renderAllControls();
+      renderAnnotatedCode();
+      triggerPollCycleNow();
+      requestAnimationFrame(animationLoop);
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,2177 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LibreNMS Dispatcher Service Simulator — LibreNMS/__init__.py</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            noc: {
+              bg: '#070b12',
+              panel: '#0d131f',
+              card: '#121a29',
+              border: '#1e293b',
+              accent: '#06b6d4',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              rose: '#f43f5e',
+              violet: '#8b5cf6',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* Base Dark NOC Styling & Custom Scrollbars */
+    body {
+      background-color: #070b12;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Subtle NOC Grid Background */
+    .noc-grid-bg {
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(6, 182, 212, 0.08), transparent 60%),
+        linear-gradient(to right, rgba(30, 41, 59, 0.25) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(30, 41, 59, 0.25) 1px, transparent 1px);
+      background-size: 100% 100%, 32px 32px, 32px 32px;
+    }
+
+    /* Glassmorphic Panel */
+    .glass-panel {
+      background: rgba(13, 19, 31, 0.86);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(56, 189, 248, 0.14);
+    }
+
+    /* Custom Range Sliders */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 999px;
+      background: #1e293b;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #06b6d4;
+      border: 2px solid #070b12;
+      box-shadow: 0 0 8px rgba(6, 182, 212, 0.65);
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+      background: #22d3ee;
+    }
+    input[type="range"].slider-amber::-webkit-slider-thumb {
+      background: #f59e0b;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.65);
+    }
+    input[type="range"].slider-emerald::-webkit-slider-thumb {
+      background: #10b981;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.65);
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(13, 19, 31, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* Code Highlighting Pulse */
+    .code-line {
+      transition: background-color 0.25s ease, border-left-color 0.25s ease;
+      border-left: 3px solid transparent;
+      padding-left: 10px;
+    }
+    .code-line.active-exec {
+      background-color: rgba(6, 182, 212, 0.16);
+      border-left-color: #06b6d4;
+    }
+    .code-line.active-lock {
+      background-color: rgba(16, 185, 129, 0.16);
+      border-left-color: #10b981;
+    }
+    .code-line.active-warn {
+      background-color: rgba(244, 63, 94, 0.18);
+      border-left-color: #f43f5e;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.45); }
+      50% { box-shadow: 0 0 16px 2px rgba(244, 63, 94, 0.35); }
+    }
+    .overrun-pulse {
+      animation: pulseGlow 1.8s infinite;
+    }
+  </style>
+</head>
+<body class="noc-grid-bg min-h-screen flex flex-col selection:bg-cyan-500/30 selection:text-cyan-200">
+
+  <!-- ==================== TOP COMMAND BAR ==================== -->
+  <header class="glass-panel sticky top-0 z-30 border-b border-slate-800/90 px-3 sm:px-5 py-2.5">
+    <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Left: Brand & Service Identity -->
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-500/40 flex items-center justify-center shadow-lg shadow-cyan-950/40 shrink-0">
+          <!-- Custom SVG Dispatcher Node Icon -->
+          <svg class="w-5 h-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="5" cy="12" r="2.5" />
+            <circle cx="19" cy="6" r="2.5" />
+            <circle cx="19" cy="12" r="2.5" />
+            <circle cx="19" cy="18" r="2.5" />
+            <path d="M7.5 12h4m0 0l5-6m-5 6h5m-5 0l5 6" stroke-linecap="round" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm sm:text-base font-bold tracking-tight text-white">LibreNMS Dispatcher Service</h1>
+            <span class="hidden md:inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+              LibreNMS/__init__.py
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono">
+            Node: <span class="text-emerald-400">noc-poller-01</span> • Redis + Redlock + ThreadPool (<span class="text-cyan-300">BLPOP</span>)
+          </p>
+        </div>
+      </div>
+
+      <!-- Center: Polling Interval Toggle (1-Min vs 5-Min) & Cycle Progress -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div class="flex items-center bg-slate-950/90 p-1 rounded-xl border border-slate-800 shadow-inner" role="group" aria-label="Polling Frequency">
+          <button id="btn-poll-60" onclick="setPollingInterval(60)"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <span>1-Min Polling</span>
+            <span class="font-mono text-[10px] opacity-80">(60s)</span>
+          </button>
+          <button id="btn-poll-300" onclick="setPollingInterval(300)"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer">
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span>5-Min Polling</span>
+            <span class="font-mono text-[10px] opacity-80">(300s)</span>
+          </button>
+        </div>
+
+        <!-- Live Next Dispatch Countdown Pill -->
+        <div class="hidden xl:flex items-center gap-2.5 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5">
+          <div class="text-[11px] font-mono text-slate-400">
+            Next Poll: <span id="hdr-countdown" class="text-white font-semibold">60.0s</span>
+          </div>
+          <div class="w-20 h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div id="hdr-cycle-bar" class="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-100" style="width: 15%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Speed Multiplier & Quick Actions -->
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Speed Selector -->
+        <div class="flex items-center bg-slate-950/90 p-1 rounded-xl border border-slate-800 text-xs font-mono">
+          <button data-speed="0" onclick="setSimSpeed(0)" class="speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer" title="Pause Simulation">⏸</button>
+          <button data-speed="1" onclick="setSimSpeed(1)" class="speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">1x</button>
+          <button data-speed="5" onclick="setSimSpeed(5)" class="speed-btn px-2 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold transition cursor-pointer">5x</button>
+          <button data-speed="15" onclick="setSimSpeed(15)" class="speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">15x</button>
+          <button data-speed="30" onclick="setSimSpeed(30)" class="speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">30x</button>
+        </div>
+
+        <!-- Trigger Immediate Poll Cycle -->
+        <button onclick="triggerImmediateDispatch()"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95">
+          <span>⚡</span>
+          <span class="hidden sm:inline">Dispatch Now</span>
+        </button>
+
+        <!-- Burst Injection -->
+        <button onclick="injectBurstTraffic(40)"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 transition flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95">
+          <span>💥</span>
+          <span class="hidden sm:inline">+40 Burst</span>
+        </button>
+
+        <!-- Sound Toggle -->
+        <button id="btn-sound" onclick="toggleSound()"
+          class="p-1.5 rounded-xl text-xs bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800 transition cursor-pointer"
+          title="Toggle Telemetry Audio Cues">
+          🔇
+        </button>
+
+        <!-- Reset -->
+        <button onclick="resetSimulation()"
+          class="p-1.5 px-2.5 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 transition cursor-pointer"
+          title="Reset Simulation">
+          ↺
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== OVERRUN / CAPACITY ALERT BANNER ==================== -->
+  <div id="overrun-banner" class="hidden bg-rose-950/85 border-b border-rose-500/40 px-4 py-2 text-xs text-rose-200">
+    <div class="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 animate-ping"></span>
+        <span class="font-semibold text-rose-300">QUEUE OVERRUN WARNING:</span>
+        <span id="overrun-text">Queue backlog cannot drain within the 60s polling window. Increase worker threads or switch to 5-min polling.</span>
+      </div>
+      <button onclick="autoScaleWorkers()" class="px-2.5 py-1 rounded-lg bg-rose-500/25 hover:bg-rose-500/40 border border-rose-400/40 text-rose-100 font-semibold text-[11px] transition cursor-pointer">
+        Auto-Scale Workers to Fix
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN WORKSPACE ==================== -->
+  <main class="flex-1 max-w-[1920px] w-full mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+    <!-- LEFT / CENTER COLUMN: Interactive Architecture Canvas + Telemetry Cards (7 or 8 cols) -->
+    <section class="lg:col-span-7 xl:col-span-8 flex flex-col gap-4 min-w-0">
+      
+      <!-- Top KPI Strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <!-- KPI 1: Total Redis Queue Length -->
+        <div class="glass-panel rounded-2xl p-3 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>REDIS QUEUE DEPTH (LLEN)</span>
+            <span class="font-mono text-cyan-400">FIFO</span>
+          </div>
+          <div class="mt-1.5 flex items-baseline justify-between">
+            <span id="kpi-total-llen" class="text-2xl font-bold font-mono text-white">0</span>
+            <span id="kpi-llen-delta" class="text-[11px] font-mono text-slate-400">jobs waiting</span>
+          </div>
+          <div class="mt-2 h-8 w-full">
+            <canvas id="spark-llen" class="w-full h-full"></canvas>
+          </div>
+        </div>
+
+        <!-- KPI 2: Active Workers / Pool Capacity -->
+        <div class="glass-panel rounded-2xl p-3 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>WORKER THREADS</span>
+            <span class="font-mono text-emerald-400">BLPOP</span>
+          </div>
+          <div class="mt-1.5 flex items-baseline justify-between">
+            <span id="kpi-workers" class="text-2xl font-bold font-mono text-emerald-400">0 / 0</span>
+            <span id="kpi-util-pct" class="text-[11px] font-mono text-slate-300">0% busy</span>
+          </div>
+          <div class="mt-2 h-8 w-full">
+            <canvas id="spark-util" class="w-full h-full"></canvas>
+          </div>
+        </div>
+
+        <!-- KPI 3: Throughput & Avg Poll Time -->
+        <div class="glass-panel rounded-2xl p-3 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>THROUGHPUT / LATENCY</span>
+            <span class="font-mono text-violet-400">RRD/DB</span>
+          </div>
+          <div class="mt-1.5 flex items-baseline justify-between">
+            <span id="kpi-throughput" class="text-2xl font-bold font-mono text-white">0.0<span class="text-xs font-normal text-slate-400">/s</span></span>
+            <span id="kpi-avg-latency" class="text-[11px] font-mono text-cyan-300">~800ms</span>
+          </div>
+          <div class="mt-2 flex items-center justify-between text-[11px] font-mono text-slate-400 pt-1 border-t border-slate-800/80">
+            <span>Completed: <strong id="kpi-completed" class="text-emerald-400">0</strong></span>
+            <span>Overruns: <strong id="kpi-overruns" class="text-rose-400">0</strong></span>
+          </div>
+        </div>
+
+        <!-- KPI 4: Cycle Window Fit (1-min vs 5-min) -->
+        <div id="kpi-window-card" class="glass-panel rounded-2xl p-3 flex flex-col justify-between transition-all">
+          <div class="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+            <span>CYCLE DRAIN ESTIMATE</span>
+            <span id="kpi-freq-badge" class="font-mono text-cyan-300">60s WINDOW</span>
+          </div>
+          <div class="mt-1.5 flex items-baseline justify-between">
+            <span id="kpi-drain-time" class="text-2xl font-bold font-mono text-emerald-400">0.0s</span>
+            <span id="kpi-window-status" class="text-[11px] font-mono font-semibold text-emerald-400">HEALTHY</span>
+          </div>
+          <div class="mt-2 w-full bg-slate-800/90 h-2 rounded-full overflow-hidden">
+            <div id="kpi-drain-bar" class="h-full bg-emerald-400 transition-all duration-200" style="width: 10%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Pipeline Visualization Canvas Card -->
+      <div class="glass-panel rounded-2xl p-3 sm:p-4 flex flex-col flex-1 min-h-[480px] sm:min-h-[560px] relative overflow-hidden">
+        <!-- Canvas Top Toolbar & Legend -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 mb-2 border-b border-slate-800/80 z-10">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Dispatcher Pipeline Topology</span>
+            <span class="text-[11px] font-mono text-slate-500 hidden sm:inline">(Click any Queue or Worker to inspect)</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 text-[11px] font-mono">
+            <span class="flex items-center gap-1.5 text-slate-300"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>Redlock / Executing</span>
+            <span class="flex items-center gap-1.5 text-slate-300"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>Redis Queue (LPUSH/BLPOP)</span>
+            <span class="flex items-center gap-1.5 text-slate-300"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>Backpressure</span>
+            <span class="flex items-center gap-1.5 text-slate-300"><span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>Idle Thread</span>
+          </div>
+        </div>
+
+        <!-- Responsive Canvas Container -->
+        <div id="canvas-wrapper" class="relative flex-1 w-full min-h-[420px] rounded-xl bg-[#060911] border border-slate-800/80 overflow-hidden">
+          <canvas id="dispatcher-canvas" class="block w-full h-full cursor-pointer"></canvas>
+
+          <!-- Floating Node Inspector Card (Appears when clicking/hovering a queue or worker) -->
+          <div id="node-inspector" class="hidden absolute bottom-3 left-3 right-3 sm:right-auto sm:w-96 glass-panel rounded-xl p-3.5 border border-cyan-500/40 shadow-2xl z-20 text-xs">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+              <div class="flex items-center gap-2">
+                <span id="insp-badge" class="px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-cyan-500/20 text-cyan-300">QUEUE</span>
+                <h3 id="insp-title" class="font-mono font-bold text-white text-xs">librenms:queue:poller:0</h3>
+              </div>
+              <button onclick="closeInspector()" class="text-slate-400 hover:text-white px-1.5 py-0.5 rounded cursor-pointer">✕</button>
+            </div>
+            <div id="insp-body" class="space-y-1.5 font-mono text-[11px] text-slate-300">
+              <!-- Populated dynamically -->
+            </div>
+            <div id="insp-actions" class="mt-3 pt-2 border-t border-slate-800 flex flex-wrap gap-2">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT COLUMN: Multi-Queue Controls, Code Inspector & Live Logs (5 or 4 cols) -->
+    <aside class="lg:col-span-5 xl:col-span-4 flex flex-col gap-4 min-w-0">
+      
+      <!-- Tab Navigation -->
+      <div class="glass-panel rounded-2xl p-1.5 grid grid-cols-3 gap-1">
+        <button id="tab-btn-controls" onclick="switchRightTab('controls')"
+          class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer">
+          <span>⚙️</span>
+          <span>Queues & Workers</span>
+        </button>
+        <button id="tab-btn-code" onclick="switchRightTab('code')"
+          class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white cursor-pointer">
+          <span>🐍</span>
+          <span>__init__.py</span>
+        </button>
+        <button id="tab-btn-logs" onclick="switchRightTab('logs')"
+          class="tab-btn py-2 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white cursor-pointer">
+          <span>📜</span>
+          <span>Logs</span>
+          <span id="log-badge-count" class="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-slate-800 text-slate-300">0</span>
+        </button>
+      </div>
+
+      <!-- TAB 1: QUEUES, QUEUE LENGTH & WORKER CONTROLS -->
+      <div id="tab-panel-controls" class="flex flex-col gap-3.5 overflow-y-auto max-h-[calc(100vh-145px)] pr-0.5">
+        
+        <!-- Scenario Presets & Global Workload Settings -->
+        <div class="glass-panel rounded-2xl p-3.5 space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Workload & Scenarios</h2>
+            <span class="text-[11px] font-mono text-cyan-400">config.php / lnms</span>
+          </div>
+
+          <!-- Quick Scenario Buttons -->
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="applyPreset('healthy5m')"
+              class="p-2 rounded-xl text-left bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-emerald-500/40 transition cursor-pointer">
+              <div class="text-xs font-semibold text-emerald-400">✓ Balanced 5-Min</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">300s cycle • Smooth drain</div>
+            </button>
+            <button onclick="applyPreset('fast1m')"
+              class="p-2 rounded-xl text-left bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-cyan-500/40 transition cursor-pointer">
+              <div class="text-xs font-semibold text-cyan-400">⚡ High-Freq 1-Min</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">60s cycle • Scaled threads</div>
+            </button>
+            <button onclick="applyPreset('overrun')"
+              class="p-2 rounded-xl text-left bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-rose-500/40 transition cursor-pointer">
+              <div class="text-xs font-semibold text-rose-400">🔥 Queue Overrun</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">60s cycle • Starved workers</div>
+            </button>
+            <button onclick="applyPreset('multiregion')"
+              class="p-2 rounded-xl text-left bg-slate-900/90 hover:bg-slate-800/90 border border-slate-800 hover:border-violet-500/40 transition cursor-pointer">
+              <div class="text-xs font-semibold text-violet-400">🌐 Multi-Group Cluster</div>
+              <div class="text-[10px] text-slate-400 mt-0.5">Groups 0, 1, 2 + Services</div>
+            </button>
+          </div>
+
+          <!-- Devices Per Cycle & Simulated Poll Latency -->
+          <div class="pt-2 border-t border-slate-800/80 space-y-2.5">
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-300">Monitored Devices (per Poller Group)</span>
+                <span id="lbl-device-count" class="font-mono font-bold text-cyan-300">60 devices</span>
+              </div>
+              <input id="slider-devices" type="range" min="10" max="240" step="5" value="60" oninput="updateDeviceCount(this.value)" class="w-full" />
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-slate-300">Simulated Poll Duration (SNMP/Agent)</span>
+                <span id="lbl-latency" class="font-mono font-bold text-amber-300">800 ms</span>
+              </div>
+              <input id="slider-latency" type="range" min="200" max="4000" step="100" value="800" oninput="updateBaseLatency(this.value)" class="w-full slider-amber" />
+              <div class="flex justify-between text-[10px] font-mono text-slate-500 mt-1">
+                <span>Fast (200ms)</span>
+                <span>Normal (800ms)</span>
+                <span>Slow SNMP (4.0s)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-Queue & Queue Length Simulator -->
+        <div class="glass-panel rounded-2xl p-3.5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Redis Queues & Worker Pools</h2>
+              <p class="text-[11px] text-slate-400">Adjust queue lengths (LLEN) & worker thread counts</p>
+            </div>
+            <button onclick="addCustomPollerGroup()"
+              class="px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/40 transition cursor-pointer">
+              + Poller Group
+            </button>
+          </div>
+
+          <!-- Dynamic Queue Cards List -->
+          <div id="queue-controls-list" class="space-y-2.5">
+            <!-- Populated by renderQueueControls() -->
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: LIVE ANNOTATED PYTHON CODE (LibreNMS/__init__.py) -->
+      <div id="tab-panel-code" class="hidden glass-panel rounded-2xl p-3.5 flex flex-col max-h-[calc(100vh-145px)]">
+        <div class="flex items-center justify-between pb-2.5 mb-2 border-b border-slate-800">
+          <div>
+            <h2 class="text-xs font-bold text-white font-mono">LibreNMS/__init__.py</h2>
+            <p class="text-[11px] text-slate-400">Live execution tracer • Highlights active dispatch & worker paths</p>
+          </div>
+          <span id="code-active-phase" class="px-2 py-0.5 rounded-md text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            BLPOP_WAIT
+          </span>
+        </div>
+
+        <div id="python-code-container" class="overflow-y-auto font-mono text-[11px] leading-relaxed text-slate-300 space-y-0.5 pr-1 select-text">
+          <!-- Annotated Python code injected here -->
+        </div>
+      </div>
+
+      <!-- TAB 3: LIVE DISPATCHER LOG STREAM -->
+      <div id="tab-panel-logs" class="hidden glass-panel rounded-2xl p-3.5 flex flex-col max-h-[calc(100vh-145px)]">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-2 border-b border-slate-800">
+          <div class="flex items-center gap-1.5">
+            <button onclick="setLogFilter('ALL')" data-logfilter="ALL" class="log-filter-btn px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer">ALL</button>
+            <button onclick="setLogFilter('INFO')" data-logfilter="INFO" class="log-filter-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer">INFO</button>
+            <button onclick="setLogFilter('DEBUG')" data-logfilter="DEBUG" class="log-filter-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer">DEBUG</button>
+            <button onclick="setLogFilter('WARN')" data-logfilter="WARN" class="log-filter-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer">WARN</button>
+          </div>
+          <button onclick="clearLogs()" class="text-[11px] font-mono text-slate-400 hover:text-rose-300 cursor-pointer">Clear</button>
+        </div>
+
+        <div id="log-stream-container" class="flex-1 overflow-y-auto font-mono text-[11px] space-y-1 pr-1 min-h-[360px]">
+          <!-- Live log rows injected here -->
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <script>
+    /**
+     * ============================================================================
+     * LibreNMS Python Dispatcher Service Simulator (LibreNMS/__init__.py)
+     * ----------------------------------------------------------------------------
+     * Models:
+     *  - LibreNMS.Service master scheduler loops (_service_manager)
+     *  - Redlock distributed mutexes (poller_master:<group>, discovery_master, etc.)
+     *  - Redis FIFO queues (LPUSH / BLPOP) with deduplication sets
+     *  - Dynamic Python threading.Thread worker pools executing PHP/fping jobs
+     *  - Watchdog thread health monitoring & 1-min (60s) vs 5-min (300s) overrun math
+     * ============================================================================
+     */
+
+    // -------------------- GLOBAL SIMULATION STATE --------------------
+    const state = {
+      pollingInterval: 60,        // 60 (1-min polling) or 300 (5-min polling)
+      simSpeed: 5,                // 0 (paused), 1, 5, 15, 30
+      simTime: 0,                 // Accumulated simulated seconds
+      devicesPerGroup: 60,        // Devices assigned to each poller group
+      baseLatencyMs: 800,         // Average device poll execution duration in ms
+      soundEnabled: false,
+      activeRightTab: 'controls',
+      logFilter: 'ALL',
+      selectedEntity: null,       // { type: 'queue'|'worker', queueId, workerId? }
+      hoveredEntity: null,
+      totalCompleted: 0,
+      overrunCount: 0,
+      recentCompletions: [],      // Timestamps (simTime) for throughput calculation
+      nextDeviceSeq: 101,
+      nextWorkerTid: 14000,
+      customGroupCounter: 3,
+
+      // Telemetry history for sparklines
+      history: {
+        llen: Array(40).fill(0),
+        util: Array(40).fill(0),
+        sampleTimer: 0
+      },
+
+      // Active code highlight phase
+      codePhase: 'BLPOP_WAIT',
+      codePhaseTimer: 0,
+
+      // Redis Queues & Worker Pools (Modeled directly after LibreNMS/__init__.py)
+      queues: [],
+
+      // Animated visual particles & pulses on the HTML5 Canvas
+      particles: [],
+      dbPulses: [],
+      sinkPulses: [],
+      logs: []
+    };
+
+    // Default queue templates reflecting LibreNMS/__init__.py subsystems & poller groups
+    function createInitialQueues() {
+      return [
+        {
+          id: 'poller:0',
+          name: 'poller:group_0',
+          label: 'Poller Group 0 (Default)',
+          redisKey: 'librenms:queue:poller:0',
+          lockKey: 'poller_master:0',
+          command: 'php poller.php -h',
+          color: '#06b6d4', // Cyan
+          enabled: true,
+          usesGlobalPollingFreq: true,
+          frequency: state.pollingInterval,
+          nextDispatchIn: 4.0,
+          lockTtl: 0,
+          maxLockTtl: 15,
+          isPollerGroup: true,
+          jobMultiplier: 1.0,
+          latencyFactor: 1.0,
+          workerCount: 8,
+          items: [],
+          inFlightSet: new Set(),
+          workers: [],
+          completedCount: 0,
+          overrun: false
+        },
+        {
+          id: 'poller:1',
+          name: 'poller:group_1',
+          label: 'Poller Group 1 (US-East)',
+          redisKey: 'librenms:queue:poller:1',
+          lockKey: 'poller_master:1',
+          command: 'php poller.php -h',
+          color: '#10b981', // Emerald
+          enabled: true,
+          usesGlobalPollingFreq: true,
+          frequency: state.pollingInterval,
+          nextDispatchIn: 14.0,
+          lockTtl: 0,
+          maxLockTtl: 15,
+          isPollerGroup: true,
+          jobMultiplier: 0.85,
+          latencyFactor: 0.95,
+          workerCount: 6,
+          items: [],
+          inFlightSet: new Set(),
+          workers: [],
+          completedCount: 0,
+          overrun: false
+        },
+        {
+          id: 'poller:2',
+          name: 'poller:group_2',
+          label: 'Poller Group 2 (EU-West)',
+          redisKey: 'librenms:queue:poller:2',
+          lockKey: 'poller_master:2',
+          command: 'php poller.php -h',
+          color: '#38bdf8', // Sky
+          enabled: false,
+          usesGlobalPollingFreq: true,
+          frequency: state.pollingInterval,
+          nextDispatchIn: 22.0,
+          lockTtl: 0,
+          maxLockTtl: 15,
+          isPollerGroup: true,
+          jobMultiplier: 0.75,
+          latencyFactor: 1.1,
+          workerCount: 5,
+          items: [],
+          inFlightSet: new Set(),
+          workers: [],
+          completedCount: 0,
+          overrun: false
+        },
+        {
+          id: 'services:0',
+          name: 'services:0',
+          label: 'Nagios Services Check',
+          redisKey: 'librenms:queue:services:0',
+          lockKey: 'services_master:0',
+          command: 'php check-services.php -h',
+          color: '#8b5cf6', // Violet
+          enabled: true,
+          usesGlobalPollingFreq: true,
+          frequency: state.pollingInterval,
+          nextDispatchIn: 9.0,
+          lockTtl: 0,
+          maxLockTtl: 12,
+          isPollerGroup: false,
+          jobMultiplier: 0.35,
+          latencyFactor: 0.7,
+          workerCount: 3,
+          items: [],
+          inFlightSet: new Set(),
+          workers: [],
+          completedCount: 0,
+          overrun: false
+        },
+        {
+          id: 'alerting',
+          name: 'alerting',
+          label: 'Alert Rules Engine',
+          redisKey: 'librenms:queue:alerting',
+          lockKey: 'alerting_master',
+          command: 'php alerts.php',
+          color: '#f59e0b', // Amber
+          enabled: true,
+          usesGlobalPollingFreq: false,
+          frequency: 60,
+          nextDispatchIn: 18.0,
+          lockTtl: 0,
+          maxLockTtl: 10,
+          isPollerGroup: false,
+          jobMultiplier: 0.25,
+          latencyFactor: 0.5,
+          workerCount: 2,
+          items: [],
+          inFlightSet: new Set(),
+          workers: [],
+          completedCount: 0,
+          overrun: false
+        },
+        {
+          id: 'discovery:0',
+          name: 'discovery:0',
+          label: 'Auto-Discovery Queue',
+          redisKey: 'librenms:queue:discovery:0',
+          lockKey: 'discovery_master:0',
+          command: 'php discovery.php -h',
+          color: '#ec4899', // Pink
+          enabled: false,
+          usesGlobalPollingFreq: false,
+          frequency: 180,
+          nextDispatchIn: 25.0,
+          lockTtl: 0,
+          maxLockTtl: 20,
+          isPollerGroup: false,
+          jobMultiplier: 0.2,
+          latencyFactor: 2.2,
+          workerCount: 3,
+          items: [],
+          inFlightSet: new Set(),
+          workers: [],
+          completedCount: 0,
+          overrun: false
+        },
+        {
+          id: 'ping',
+          name: 'ping',
+          label: 'Fast ICMP Ping (fping)',
+          redisKey: 'librenms:queue:ping',
+          lockKey: 'ping_master',
+          command: 'fping -e -q',
+          color: '#14b8a6', // Teal
+          enabled: false,
+          usesGlobalPollingFreq: false,
+          frequency: 60,
+          nextDispatchIn: 6.0,
+          lockTtl: 0,
+          maxLockTtl: 8,
+          isPollerGroup: false,
+          jobMultiplier: 0.5,
+          latencyFactor: 0.3,
+          workerCount: 2,
+          items: [],
+          inFlightSet: new Set(),
+          workers: [],
+          completedCount: 0,
+          overrun: false
+        }
+      ];
+    }
+
+    // -------------------- WEB AUDIO SYNTHESIZER (OPTIONAL) --------------------
+    let audioCtx = null;
+    function playTone(freq, duration = 0.06, type = 'sine', gainVal = 0.04) {
+      if (!state.soundEnabled) return;
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        // Ignore audio errors if blocked by browser policy
+      }
+    }
+
+    function toggleSound() {
+      state.soundEnabled = !state.soundEnabled;
+      const btn = document.getElementById('btn-sound');
+      btn.textContent = state.soundEnabled ? '🔊' : '🔇';
+      btn.classList.toggle('text-cyan-300', state.soundEnabled);
+      btn.classList.toggle('border-cyan-500/40', state.soundEnabled);
+      if (state.soundEnabled) playTone(520, 0.08, 'triangle', 0.05);
+    }
+
+    // -------------------- WORKER THREAD MANAGEMENT --------------------
+    function createWorker(queue, index) {
+      const tid = state.nextWorkerTid++;
+      return {
+        id: `${queue.id}-w${index}-${tid}`,
+        name: `${queue.name.split(':')[0]}-W${index + 1}`,
+        tid: tid,
+        queueId: queue.id,
+        status: 'IDLE', // 'IDLE' | 'EXECUTING' | 'WRITING' | 'RESTARTING' | 'STOPPING'
+        currentJob: null,
+        progress: 0,
+        duration: 1,
+        restartTimer: 0,
+        jobsDone: 0,
+        lastDurationMs: 0,
+        // Canvas coordinates updated each frame
+        x: 0,
+        y: 0,
+        r: 14
+      };
+    }
+
+    function reconcileWorkers(queue) {
+      if (!queue.enabled) {
+        queue.workers = [];
+        return;
+      }
+      const target = queue.workerCount;
+      // Add new threads if below target
+      while (queue.workers.length < target) {
+        const w = createWorker(queue, queue.workers.length);
+        queue.workers.push(w);
+      }
+      // Gracefully mark excess threads as STOPPING
+      if (queue.workers.length > target) {
+        let activeCount = queue.workers.filter(w => w.status !== 'STOPPING').length;
+        for (let i = queue.workers.length - 1; i >= 0 && activeCount > target; i--) {
+          const w = queue.workers[i];
+          if (w.status === 'IDLE') {
+            queue.workers.splice(i, 1);
+            activeCount--;
+          } else if (w.status !== 'STOPPING') {
+            w.status = 'STOPPING';
+            activeCount--;
+          }
+        }
+      }
+    }
+
+    // -------------------- LOGGING SYSTEM --------------------
+    function addLog(level, component, message) {
+      const now = new Date();
+      const ts = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3, '0');
+      state.logs.unshift({
+        id: Math.random().toString(36).slice(2),
+        ts,
+        level,
+        component,
+        message
+      });
+      if (state.logs.length > 140) state.logs.pop();
+      document.getElementById('log-badge-count').textContent = state.logs.length;
+      if (state.activeRightTab === 'logs') {
+        renderLogs();
+      }
+    }
+
+    function setLogFilter(filter) {
+      state.logFilter = filter;
+      document.querySelectorAll('.log-filter-btn').forEach(btn => {
+        const active = btn.dataset.logfilter === filter;
+        btn.className = active
+          ? 'log-filter-btn px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer'
+          : 'log-filter-btn px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 hover:text-white cursor-pointer';
+      });
+      renderLogs();
+    }
+
+    function clearLogs() {
+      state.logs = [];
+      document.getElementById('log-badge-count').textContent = '0';
+      renderLogs();
+    }
+
+    function renderLogs() {
+      const container = document.getElementById('log-stream-container');
+      const filtered = state.logFilter === 'ALL'
+        ? state.logs
+        : state.logs.filter(l => l.level === state.logFilter);
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="text-slate-500 italic py-6 text-center">No log events matching filter "${state.logFilter}"</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.slice(0, 80).map(log => {
+        let lvlClass = 'text-cyan-400';
+        if (log.level === 'INFO') lvlClass = 'text-emerald-400';
+        else if (log.level === 'WARN') lvlClass = 'text-amber-400 font-semibold';
+        else if (log.level === 'ERROR') lvlClass = 'text-rose-400 font-bold';
+        else if (log.level === 'DEBUG') lvlClass = 'text-slate-400';
+
+        return `
+          <div class="leading-snug py-0.5 border-b border-slate-800/40 break-words">
+            <span class="text-slate-500">${log.ts}</span>
+            <span class="${lvlClass}">[${log.level}]</span>
+            <span class="text-violet-300">[${log.component}]</span>
+            <span class="text-slate-200">${escapeHtml(log.message)}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    // -------------------- ANNOTATED PYTHON CODE VIEWER --------------------
+    const PYTHON_SNIPPET = [
+      { phase: 'INIT', text: 'class Service:' },
+      { phase: 'INIT', text: '    """LibreNMS Python Dispatcher Service (LibreNMS/__init__.py)"""' },
+      { phase: 'INIT', text: '    def __init__(self):' },
+      { phase: 'INIT', text: '        self.config = Config()  # service_poller_frequency = 60 | 300' },
+      { phase: 'INIT', text: '        self.redis = redis.Redis(host=self.config.redis_host)' },
+      { phase: 'INIT', text: '        self.lock_manager = Redlock([self.redis])' },
+      { phase: 'INIT', text: '' },
+      { phase: 'REDLOCK', text: '    def _service_manager(self, service_type, group=0):' },
+      { phase: 'REDLOCK', text: '        lock_name = f"{service_type}_master:{group}"' },
+      { phase: 'REDLOCK', text: '        queue_key = f"librenms:queue:{service_type}:{group}"' },
+      { phase: 'REDLOCK', text: '        while not self.terminate.is_set():' },
+      { phase: 'REDLOCK', text: '            # Acquire distributed Redlock mutex before querying DB' },
+      { phase: 'REDLOCK', text: '            lock = self.lock_manager.lock(lock_name, self.frequency * 1000)' },
+      { phase: 'DISPATCH', text: '            if lock:' },
+      { phase: 'OVERRUN', text: '                if self.redis.llen(queue_key) > 0:' },
+      { phase: 'OVERRUN', text: '                    log.warning(f"Overrun on {queue_key}: backlog pending!")' },
+      { phase: 'DISPATCH', text: '                due_devices = self._fetch_due_devices(group, self.frequency)' },
+      { phase: 'DISPATCH', text: '                for device_id in due_devices:' },
+      { phase: 'DISPATCH', text: '                    if self.redis.sadd(f"in_queue:{queue_key}", device_id):' },
+      { phase: 'DISPATCH', text: '                        self.redis.lpush(queue_key, device_id)' },
+      { phase: 'DISPATCH', text: '            self.terminate.wait(self.frequency)' },
+      { phase: 'DISPATCH', text: '' },
+      { phase: 'BLPOP_WAIT', text: '    def _worker(self, queue_key):' },
+      { phase: 'BLPOP_WAIT', text: '        while not self.terminate.is_set():' },
+      { phase: 'BLPOP_WAIT', text: '            # Block on Redis FIFO queue until job arrives' },
+      { phase: 'BLPOP_WAIT', text: '            job = self.redis.blpop(queue_key, timeout=5)' },
+      { phase: 'EXECUTE', text: '            if job:' },
+      { phase: 'EXECUTE', text: '                _, device_id = job' },
+      { phase: 'EXECUTE', text: '                try:' },
+      { phase: 'EXECUTE', text: '                    subprocess.check_call(["php", "poller.php", "-h", device_id])' },
+      { phase: 'WRITE_RRD', text: '                    # RRDtool / InfluxDB / MariaDB last_polled updated' },
+      { phase: 'WRITE_RRD', text: '                finally:' },
+      { phase: 'WRITE_RRD', text: '                    self.redis.srem(f"in_queue:{queue_key}", device_id)' },
+      { phase: 'WATCHDOG', text: '' },
+      { phase: 'WATCHDOG', text: '    def _watchdog(self):' },
+      { phase: 'WATCHDOG', text: '        for t in self.threads:' },
+      { phase: 'WATCHDOG', text: '            if not t.is_alive():' },
+      { phase: 'WATCHDOG', text: '                log.warning(f"Restarting dead worker thread {t.name}")' },
+      { phase: 'WATCHDOG', text: '                self._spawn_worker(t.queue_key)' }
+    ];
+
+    function setCodePhase(phase) {
+      state.codePhase = phase;
+      state.codePhaseTimer = 1.4;
+      const badge = document.getElementById('code-active-phase');
+      if (badge) badge.textContent = phase;
+      if (state.activeRightTab === 'code') {
+        renderPythonCode();
+      }
+    }
+
+    function renderPythonCode() {
+      const container = document.getElementById('python-code-container');
+      container.innerHTML = PYTHON_SNIPPET.map((line, idx) => {
+        const isActive = line.phase === state.codePhase;
+        let highlightClass = '';
+        if (isActive) {
+          if (line.phase === 'REDLOCK' || line.phase === 'WRITE_RRD') highlightClass = 'active-lock';
+          else if (line.phase === 'OVERRUN' || line.phase === 'WATCHDOG') highlightClass = 'active-warn';
+          else highlightClass = 'active-exec';
+        }
+        const lineNum = String(idx + 1).padStart(2, '0');
+        const highlightedText = syntaxHighlightPython(escapeHtml(line.text));
+        return `<div class="code-line ${highlightClass} whitespace-pre"><span class="text-slate-600 select-none mr-2">${lineNum}</span>${highlightedText || ' '}</div>`;
+      }).join('');
+    }
+
+    function syntaxHighlightPython(escaped) {
+      return escaped
+        .replace(/\b(class|def|while|if|for|in|try|finally|not)\b/g, '<span class="text-violet-400 font-semibold">$1</span>')
+        .replace(/\b(self|True|False|None)\b/g, '<span class="text-cyan-300">$1</span>')
+        .replace(/(#.*)$/g, '<span class="text-slate-500 italic">$1</span>')
+        .replace(/(&quot;.*?&quot;|".*?")/g, '<span class="text-emerald-300">$1</span>');
+    }
+
+    // -------------------- JOB DISPATCH & QUEUE INJECTION --------------------
+    function enqueueJobs(queue, count, source = 'scheduler') {
+      if (!queue.enabled || count <= 0) return 0;
+      let added = 0;
+      for (let i = 0; i < count; i++) {
+        // Deduplication simulation for scheduled cycles
+        const devId = source === 'scheduler'
+          ? ((i % Math.max(10, Math.round(state.devicesPerGroup * queue.jobMultiplier))) + 100)
+          : state.nextDeviceSeq++;
+
+        const dedupKey = `${queue.id}:${devId}`;
+        if (source === 'scheduler' && queue.inFlightSet.has(dedupKey)) {
+          continue; // Already queued in Redis! (SADD returned 0)
+        }
+        queue.inFlightSet.add(dedupKey);
+        queue.items.push({
+          deviceId: devId,
+          dedupKey,
+          enqueuedAt: state.simTime
+        });
+        added++;
+      }
+
+      // Spawn visual LPUSH packets from Master Scheduler to Redis Queue
+      const visualBurst = Math.min(added, 14);
+      for (let b = 0; b < visualBurst; b++) {
+        state.particles.push({
+          type: 'LPUSH',
+          queueId: queue.id,
+          color: queue.color,
+          progress: -b * 0.06,
+          speed: 2.2
+        });
+      }
+      return added;
+    }
+
+    function setQueueLength(queueId, targetLen) {
+      const q = state.queues.find(item => item.id === queueId);
+      if (!q) return;
+      targetLen = Math.max(0, Math.min(300, Number(targetLen)));
+      if (!q.enabled && targetLen > 0) {
+        q.enabled = true;
+        reconcileWorkers(q);
+      }
+      const current = q.items.length;
+      if (targetLen > current) {
+        const added = enqueueJobs(q, targetLen - current, 'manual');
+        addLog('DEBUG', q.name, `LPUSH injected ${added} jobs -> LLEN=${q.items.length}`);
+        setCodePhase('DISPATCH');
+      } else if (targetLen < current) {
+        const removed = q.items.splice(targetLen);
+        removed.forEach(item => q.inFlightSet.delete(item.dedupKey));
+        addLog('INFO', q.name, `Trimmed queue to LLEN=${q.items.length}`);
+      }
+      renderQueueControls();
+    }
+
+    function dispatchQueueCycle(queue, manual = false) {
+      if (!queue.enabled) return;
+
+      // 1. Acquire Redlock distributed mutex
+      queue.lockTtl = queue.maxLockTtl;
+      setCodePhase('REDLOCK');
+      playTone(440, 0.05, 'sine', 0.03);
+
+      // 2. Check for Overrun (items from previous polling interval still waiting in Redis!)
+      const existingBacklog = queue.items.length;
+      if (existingBacklog > 0) {
+        queue.overrun = true;
+        state.overrunCount++;
+        setCodePhase('OVERRUN');
+        addLog('WARN', queue.lockKey, `Cycle overrun! LLEN=${existingBacklog} jobs still queued from previous ${queue.frequency}s cycle.`);
+        playTone(190, 0.14, 'sawtooth', 0.05);
+      } else {
+        queue.overrun = false;
+      }
+
+      // 3. Query MariaDB for due devices & LPUSH into Redis FIFO queue
+      const dueCount = Math.max(1, Math.round(state.devicesPerGroup * queue.jobMultiplier));
+      const pushed = enqueueJobs(queue, dueCount, 'scheduler');
+
+      // Visual DB query pulse
+      state.dbPulses.push({ queueId: queue.id, progress: 0 });
+
+      addLog(
+        'INFO',
+        queue.lockKey,
+        `Redlock acquired (${manual ? 'manual' : queue.frequency + 's'} cycle) -> LPUSH ${pushed} jobs to ${queue.redisKey} (LLEN=${queue.items.length})`
+      );
+
+      if (pushed > 0 && existingBacklog === 0) {
+        setTimeout(() => setCodePhase('DISPATCH'), 250);
+      }
+
+      queue.nextDispatchIn = queue.frequency;
+    }
+
+    function triggerImmediateDispatch() {
+      state.queues.forEach(q => {
+        if (q.enabled) dispatchQueueCycle(q, true);
+      });
+      renderQueueControls();
+    }
+
+    function injectBurstTraffic(amount = 40) {
+      const enabledQueues = state.queues.filter(q => q.enabled);
+      if (enabledQueues.length === 0) return;
+      const perQueue = Math.max(4, Math.ceil(amount / enabledQueues.length));
+      enabledQueues.forEach(q => {
+        enqueueJobs(q, perQueue, 'burst');
+      });
+      setCodePhase('DISPATCH');
+      addLog('WARN', 'BurstInjector', `Injected +${amount} burst jobs across ${enabledQueues.length} active Redis queues`);
+      playTone(320, 0.09, 'triangle', 0.05);
+      renderQueueControls();
+    }
+
+    // -------------------- USER CONTROLS & PRESETS --------------------
+    function setPollingInterval(seconds) {
+      state.pollingInterval = seconds;
+      state.queues.forEach(q => {
+        if (q.usesGlobalPollingFreq) {
+          q.frequency = seconds;
+          q.nextDispatchIn = Math.min(q.nextDispatchIn, seconds);
+        }
+      });
+
+      // Update toggle buttons styling
+      const btn60 = document.getElementById('btn-poll-60');
+      const btn300 = document.getElementById('btn-poll-300');
+      if (seconds === 60) {
+        btn60.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer bg-cyan-500/20 text-cyan-200 border border-cyan-500/50 shadow-sm';
+        btn300.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-white';
+      } else {
+        btn300.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer bg-emerald-500/20 text-emerald-200 border border-emerald-500/50 shadow-sm';
+        btn60.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-white';
+      }
+
+      document.getElementById('kpi-freq-badge').textContent = `${seconds}s WINDOW`;
+      addLog('INFO', 'Config', `Updated service_poller_frequency = ${seconds}s (${seconds === 60 ? '1-minute' : '5-minute'} polling)`);
+      renderQueueControls();
+    }
+
+    function setSimSpeed(speed) {
+      state.simSpeed = speed;
+      document.querySelectorAll('.speed-btn').forEach(btn => {
+        const active = Number(btn.dataset.speed) === speed;
+        btn.className = active
+          ? 'speed-btn px-2 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold transition cursor-pointer'
+          : 'speed-btn px-2 py-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer';
+      });
+    }
+
+    function updateDeviceCount(val) {
+      state.devicesPerGroup = Number(val);
+      document.getElementById('lbl-device-count').textContent = `${state.devicesPerGroup} devices`;
+    }
+
+    function updateBaseLatency(val) {
+      state.baseLatencyMs = Number(val);
+      document.getElementById('lbl-latency').textContent = `${state.baseLatencyMs} ms`;
+    }
+
+    function toggleQueueEnabled(queueId) {
+      const q = state.queues.find(item => item.id === queueId);
+      if (!q) return;
+      q.enabled = !q.enabled;
+      if (!q.enabled) {
+        q.items = [];
+        q.inFlightSet.clear();
+        q.overrun = false;
+      } else {
+        q.nextDispatchIn = 2.0;
+      }
+      reconcileWorkers(q);
+      addLog('INFO', 'Service', `${q.enabled ? 'Enabled' : 'Disabled'} queue ${q.redisKey} (workers=${q.enabled ? q.workerCount : 0})`);
+      renderQueueControls();
+    }
+
+    function updateQueueWorkers(queueId, count) {
+      const q = state.queues.find(item => item.id === queueId);
+      if (!q) return;
+      q.workerCount = Math.max(1, Math.min(24, Number(count)));
+      if (!q.enabled) q.enabled = true;
+      reconcileWorkers(q);
+      addLog('INFO', q.name, `Adjusted worker pool size to ${q.workerCount} threads`);
+      renderQueueControls();
+    }
+
+    function addCustomPollerGroup() {
+      const groupIdx = state.customGroupCounter++;
+      const colors = ['#38bdf8', '#a855f7', '#fb923c', '#34d399', '#f472b6'];
+      const color = colors[groupIdx % colors.length];
+      const newQueue = {
+        id: `poller:${groupIdx}`,
+        name: `poller:group_${groupIdx}`,
+        label: `Poller Group ${groupIdx} (Edge)`,
+        redisKey: `librenms:queue:poller:${groupIdx}`,
+        lockKey: `poller_master:${groupIdx}`,
+        command: 'php poller.php -h',
+        color,
+        enabled: true,
+        usesGlobalPollingFreq: true,
+        frequency: state.pollingInterval,
+        nextDispatchIn: 3.0,
+        lockTtl: 0,
+        maxLockTtl: 15,
+        isPollerGroup: true,
+        jobMultiplier: 0.7,
+        latencyFactor: 1.0,
+        workerCount: 4,
+        items: [],
+        inFlightSet: new Set(),
+        workers: [],
+        completedCount: 0,
+        overrun: false
+      };
+      reconcileWorkers(newQueue);
+      state.queues.splice(2, 0, newQueue);
+      addLog('INFO', 'Service', `Spawned distributed poller group queue ${newQueue.redisKey} with 4 workers`);
+      renderQueueControls();
+    }
+
+    function simulateWorkerCrash(queueId, workerId) {
+      const q = state.queues.find(item => item.id === queueId);
+      if (!q) return;
+      const w = workerId
+        ? q.workers.find(item => item.id === workerId)
+        : q.workers.find(item => item.status === 'EXECUTING' || item.status === 'IDLE');
+      if (!w) return;
+
+      // Requeue interrupted job back to front of Redis queue (reliable queue pattern)
+      if (w.currentJob) {
+        q.items.unshift(w.currentJob);
+        w.currentJob = null;
+      }
+      w.status = 'RESTARTING';
+      w.restartTimer = 2.0;
+      w.progress = 0;
+      setCodePhase('WATCHDOG');
+      addLog('WARN', 'Watchdog', `Worker thread ${w.name} (TID ${w.tid}) died unexpectedly! Respawning thread...`);
+      playTone(160, 0.16, 'sawtooth', 0.05);
+    }
+
+    function autoScaleWorkers() {
+      state.queues.forEach(q => {
+        if (!q.enabled) return;
+        const jobSec = (state.baseLatencyMs * q.latencyFactor) / 1000;
+        const load = q.items.length + Math.round(state.devicesPerGroup * q.jobMultiplier);
+        const needed = Math.min(24, Math.max(q.workerCount, Math.ceil((load * jobSec) / (q.frequency * 0.72))));
+        if (needed > q.workerCount) {
+          q.workerCount = needed;
+          reconcileWorkers(q);
+          addLog('INFO', 'AutoScaler', `Scaled ${q.name} workers -> ${needed} threads to meet ${q.frequency}s window`);
+        }
+      });
+      renderQueueControls();
+    }
+
+    function applyPreset(preset) {
+      state.queues = createInitialQueues();
+      state.particles = [];
+      state.dbPulses = [];
+      state.sinkPulses = [];
+
+      if (preset === 'healthy5m') {
+        setPollingInterval(300);
+        updateDeviceCount(80);
+        updateBaseLatency(700);
+        document.getElementById('slider-devices').value = 80;
+        document.getElementById('slider-latency').value = 700;
+        setSimSpeed(15);
+      } else if (preset === 'fast1m') {
+        setPollingInterval(60);
+        updateDeviceCount(90);
+        updateBaseLatency(600);
+        document.getElementById('slider-devices').value = 90;
+        document.getElementById('slider-latency').value = 600;
+        state.queues[0].workerCount = 12;
+        state.queues[1].workerCount = 10;
+        setSimSpeed(5);
+      } else if (preset === 'overrun') {
+        setPollingInterval(60);
+        updateDeviceCount(160);
+        updateBaseLatency(2200);
+        document.getElementById('slider-devices').value = 160;
+        document.getElementById('slider-latency').value = 2200;
+        state.queues[0].workerCount = 3;
+        state.queues[1].workerCount = 2;
+        setSimSpeed(5);
+      } else if (preset === 'multiregion') {
+        setPollingInterval(60);
+        updateDeviceCount(75);
+        updateBaseLatency(750);
+        document.getElementById('slider-devices').value = 75;
+        document.getElementById('slider-latency').value = 750;
+        state.queues[2].enabled = true; // Enable EU-West poller group
+        state.queues[6].enabled = true; // Enable fast fping
+        state.queues[0].workerCount = 8;
+        state.queues[1].workerCount = 7;
+        state.queues[2].workerCount = 6;
+        setSimSpeed(5);
+      }
+
+      state.queues.forEach(q => {
+        reconcileWorkers(q);
+        if (q.enabled) dispatchQueueCycle(q, false);
+      });
+      renderQueueControls();
+    }
+
+    function resetSimulation() {
+      state.simTime = 0;
+      state.totalCompleted = 0;
+      state.overrunCount = 0;
+      state.recentCompletions = [];
+      state.history.llen = Array(40).fill(0);
+      state.history.util = Array(40).fill(0);
+      state.logs = [];
+      applyPreset('fast1m');
+      addLog('INFO', 'Service', 'LibreNMS Dispatcher Service initialized (Python 3.11 / Redis FIFO)');
+    }
+
+    function switchRightTab(tabName) {
+      state.activeRightTab = tabName;
+      ['controls', 'code', 'logs'].forEach(t => {
+        const panel = document.getElementById(`tab-panel-${t}`);
+        const btn = document.getElementById(`tab-btn-${t}`);
+        if (t === tabName) {
+          panel.classList.remove('hidden');
+          btn.className = 'tab-btn py-2 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 cursor-pointer';
+        } else {
+          panel.classList.add('hidden');
+          btn.className = 'tab-btn py-2 px-2 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 text-slate-400 hover:text-white cursor-pointer';
+        }
+      });
+      if (tabName === 'code') renderPythonCode();
+      if (tabName === 'logs') renderLogs();
+    }
+
+    // -------------------- RENDER RIGHT SIDEBAR QUEUE CARDS --------------------
+    function renderQueueControls() {
+      const container = document.getElementById('queue-controls-list');
+      container.innerHTML = state.queues.map(q => {
+        const llen = q.items.length;
+        const busyWorkers = q.workers.filter(w => w.status === 'EXECUTING' || w.status === 'WRITING').length;
+        const isSelected = state.selectedEntity && state.selectedEntity.queueId === q.id;
+        const borderClass = q.overrun
+          ? 'border-rose-500/60 bg-rose-950/15'
+          : isSelected
+            ? 'border-cyan-400/70 bg-slate-900'
+            : 'border-slate-800/90 bg-slate-900/75';
+
+        return `
+          <div class="rounded-xl p-3 border ${borderClass} transition-all space-y-2.5">
+            <!-- Header Row: Toggle, Queue Name, LLEN Pill -->
+            <div class="flex items-center justify-between gap-2">
+              <label class="flex items-center gap-2 cursor-pointer min-w-0">
+                <input type="checkbox" ${q.enabled ? 'checked' : ''} onchange="toggleQueueEnabled('${q.id}')"
+                  class="w-3.5 h-3.5 rounded accent-cyan-500 cursor-pointer shrink-0" />
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${q.color}"></span>
+                <div class="truncate">
+                  <div class="text-xs font-bold font-mono text-white truncate">${q.name}</div>
+                  <div class="text-[10px] text-slate-400 truncate">${q.label} • ${q.frequency}s</div>
+                </div>
+              </label>
+
+              <div class="flex items-center gap-1.5 shrink-0">
+                <span class="px-2 py-0.5 rounded-md font-mono text-[11px] font-bold ${llen > 40 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-cyan-300'}">
+                  LLEN: ${llen}
+                </span>
+              </div>
+            </div>
+
+            <!-- Queue Length (Backlog) Slider & Quick Inject/Drain -->
+            <div class="${q.enabled ? '' : 'opacity-45 pointer-events-none'} space-y-2">
+              <div>
+                <div class="flex items-center justify-between text-[11px] mb-1">
+                  <span class="text-slate-400">Queue Length (Inject/Set Backlog)</span>
+                  <div class="flex items-center gap-1">
+                    <button onclick="setQueueLength('${q.id}', ${llen + 25})"
+                      class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-cyan-500/20 text-cyan-300 font-mono text-[10px] border border-slate-700 cursor-pointer">+25</button>
+                    <button onclick="setQueueLength('${q.id}', 0)"
+                      class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-rose-500/20 text-rose-300 font-mono text-[10px] border border-slate-700 cursor-pointer">Drain</button>
+                  </div>
+                </div>
+                <input type="range" min="0" max="200" step="1" value="${Math.min(200, llen)}"
+                  oninput="setQueueLength('${q.id}', this.value)"
+                  class="w-full" />
+              </div>
+
+              <!-- Worker Thread Pool Size Slider -->
+              <div>
+                <div class="flex items-center justify-between text-[11px] mb-1">
+                  <span class="text-slate-400">Worker Threads (<span class="font-mono text-slate-300">BLPOP</span>)</span>
+                  <span class="font-mono text-[11px] text-emerald-400 font-semibold">${busyWorkers}/${q.workerCount} active</span>
+                </div>
+                <input type="range" min="1" max="24" step="1" value="${q.workerCount}"
+                  oninput="updateQueueWorkers('${q.id}', this.value)"
+                  class="w-full slider-emerald" />
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // -------------------- NODE INSPECTOR PANEL --------------------
+    function openInspector(entity) {
+      state.selectedEntity = entity;
+      const box = document.getElementById('node-inspector');
+      const badge = document.getElementById('insp-badge');
+      const title = document.getElementById('insp-title');
+      const body = document.getElementById('insp-body');
+      const actions = document.getElementById('insp-actions');
+
+      box.classList.remove('hidden');
+
+      if (entity.type === 'queue') {
+        const q = state.queues.find(item => item.id === entity.queueId);
+        if (!q) return;
+        badge.textContent = 'REDIS QUEUE';
+        badge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-cyan-500/20 text-cyan-300';
+        title.textContent = q.redisKey;
+        const jobSec = (state.baseLatencyMs * q.latencyFactor) / 1000;
+        const estDrain = q.workers.length > 0 ? ((q.items.length * jobSec) / q.workers.length).toFixed(1) : '∞';
+
+        body.innerHTML = `
+          <div class="flex justify-between"><span class="text-slate-400">Master Lock:</span><span class="text-emerald-400">${q.lockKey} (TTL ${q.lockTtl.toFixed(1)}s)</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Current LLEN:</span><span class="text-white font-bold">${q.items.length} jobs</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Poll Frequency:</span><span class="text-cyan-300">${q.frequency}s (next in ${q.nextDispatchIn.toFixed(1)}s)</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Est. Queue Drain:</span><span class="${Number(estDrain) > q.frequency ? 'text-rose-400 font-bold' : 'text-emerald-400'}">${estDrain}s</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Jobs Completed:</span><span class="text-slate-200">${q.completedCount}</span></div>
+        `;
+        actions.innerHTML = `
+          <button onclick="setQueueLength('${q.id}', ${q.items.length + 30}); openInspector(state.selectedEntity);"
+            class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 font-mono text-[11px] cursor-pointer">+30 Jobs</button>
+          <button onclick="dispatchQueueCycle(state.queues.find(x=>x.id==='${q.id}'), true); openInspector(state.selectedEntity);"
+            class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 font-mono text-[11px] cursor-pointer">⚡ Force Poll</button>
+          <button onclick="simulateWorkerCrash('${q.id}');"
+            class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 font-mono text-[11px] cursor-pointer">💥 Test Watchdog</button>
+        `;
+      } else if (entity.type === 'worker') {
+        const q = state.queues.find(item => item.id === entity.queueId);
+        const w = q ? q.workers.find(item => item.id === entity.workerId) : null;
+        if (!q || !w) return;
+        badge.textContent = 'PYTHON THREAD';
+        badge.className = 'px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-300';
+        title.textContent = `${w.name} (TID: ${w.tid})`;
+
+        body.innerHTML = `
+          <div class="flex justify-between"><span class="text-slate-400">Listening Queue:</span><span class="text-cyan-300">${q.redisKey}</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Thread State:</span><span class="text-white font-bold">${w.status}</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Subprocess:</span><span class="text-amber-300">${w.currentJob ? `${q.command} ${w.currentJob.deviceId}` : 'BLPOP blocking...'}</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Jobs Processed:</span><span class="text-emerald-400">${w.jobsDone} (last: ${w.lastDurationMs}ms)</span></div>
+        `;
+        actions.innerHTML = `
+          <button onclick="simulateWorkerCrash('${q.id}', '${w.id}'); openInspector(state.selectedEntity);"
+            class="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 font-mono text-[11px] cursor-pointer">💥 Kill Thread (Test Watchdog)</button>
+        `;
+      }
+      renderQueueControls();
+    }
+
+    function closeInspector() {
+      state.selectedEntity = null;
+      document.getElementById('node-inspector').classList.add('hidden');
+      renderQueueControls();
+    }
+
+    // -------------------- SIMULATION PHYSICS & TICK LOOP --------------------
+    function stepSimulation(dt) {
+      if (state.simSpeed === 0) return;
+      const simDt = dt * state.simSpeed;
+      state.simTime += simDt;
+
+      // Decay code highlight timer
+      if (state.codePhaseTimer > 0) {
+        state.codePhaseTimer -= dt;
+        if (state.codePhaseTimer <= 0 && state.codePhase !== 'BLPOP_WAIT') {
+          setCodePhase('BLPOP_WAIT');
+        }
+      }
+
+      // 1. Update Master Schedulers & Redlock Leases
+      state.queues.forEach(q => {
+        if (!q.enabled) return;
+
+        if (q.lockTtl > 0) {
+          q.lockTtl = Math.max(0, q.lockTtl - simDt);
+        }
+
+        q.nextDispatchIn -= simDt;
+        if (q.nextDispatchIn <= 0) {
+          dispatchQueueCycle(q, false);
+        }
+
+        // 2. Update Worker Threads (BLPOP -> Execute -> Write RRD -> Loop)
+        for (let i = q.workers.length - 1; i >= 0; i--) {
+          const w = q.workers[i];
+
+          if (w.status === 'RESTARTING') {
+            w.restartTimer -= simDt;
+            if (w.restartTimer <= 0) {
+              w.status = 'IDLE';
+              addLog('INFO', 'Watchdog', `Worker ${w.name} respawned and re-entered BLPOP loop`);
+            }
+            continue;
+          }
+
+          if (w.status === 'IDLE' || w.status === 'STOPPING') {
+            if (w.status === 'STOPPING') {
+              q.workers.splice(i, 1);
+              continue;
+            }
+            // Attempt BLPOP from Redis FIFO Queue
+            if (q.items.length > 0) {
+              const job = q.items.shift();
+              w.currentJob = job;
+              w.status = 'EXECUTING';
+              w.progress = 0;
+              // Realistic jitter around configured poll duration
+              const jitter = 0.72 + Math.random() * 0.56;
+              w.duration = Math.max(0.15, ((state.baseLatencyMs * q.latencyFactor) / 1000) * jitter);
+
+              // Emit BLPOP packet from Redis Queue to this Worker node
+              state.particles.push({
+                type: 'BLPOP',
+                queueId: q.id,
+                workerId: w.id,
+                color: q.color,
+                progress: 0,
+                speed: 3.4
+              });
+
+              if (Math.random() < 0.14) {
+                addLog('DEBUG', w.name, `BLPOP ${q.redisKey} -> executing "${q.command} ${job.deviceId}"`);
+              }
+            }
+          } else if (w.status === 'EXECUTING' || w.status === 'WRITING') {
+            w.progress += simDt / w.duration;
+            if (w.progress >= 0.8 && w.status === 'EXECUTING') {
+              w.status = 'WRITING';
+            }
+            if (w.progress >= 1.0) {
+              // Job Complete: Update RRD/DB & remove from deduplication set
+              if (w.currentJob) {
+                q.inFlightSet.delete(w.currentJob.dedupKey);
+              }
+              w.jobsDone++;
+              w.lastDurationMs = Math.round(w.duration * 1000);
+              q.completedCount++;
+              state.totalCompleted++;
+              state.recentCompletions.push(state.simTime);
+
+              if (q.items.length === 0) {
+                q.overrun = false;
+              }
+
+              // Emit RRD/DB write particle from Worker to Sink
+              state.particles.push({
+                type: 'RRD_WRITE',
+                queueId: q.id,
+                workerId: w.id,
+                color: '#10b981',
+                progress: 0,
+                speed: 3.0
+              });
+
+              w.currentJob = null;
+              w.progress = 0;
+              w.status = 'IDLE';
+
+              if (Math.random() < 0.08 && state.codePhase === 'BLPOP_WAIT') {
+                setCodePhase('EXECUTE');
+              }
+            }
+          }
+        }
+      });
+
+      // 3. Advance Visual Particles
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        p.progress += dt * p.speed * Math.max(0.8, Math.sqrt(state.simSpeed));
+        if (p.progress >= 1.0) {
+          if (p.type === 'RRD_WRITE') {
+            state.sinkPulses.push({ progress: 0 });
+          }
+          state.particles.splice(i, 1);
+        }
+      }
+
+      for (let i = state.dbPulses.length - 1; i >= 0; i--) {
+        state.dbPulses[i].progress += dt * 2.5;
+        if (state.dbPulses[i].progress >= 1) state.dbPulses.splice(i, 1);
+      }
+
+      for (let i = state.sinkPulses.length - 1; i >= 0; i--) {
+        state.sinkPulses[i].progress += dt * 3.2;
+        if (state.sinkPulses[i].progress >= 1) state.sinkPulses.splice(i, 1);
+      }
+
+      // Prune completions older than 10 simulated seconds for throughput calc
+      while (state.recentCompletions.length > 0 && state.simTime - state.recentCompletions[0] > 10) {
+        state.recentCompletions.shift();
+      }
+
+      // Sample sparklines every 0.4s real time
+      state.history.sampleTimer += dt;
+      if (state.history.sampleTimer >= 0.4) {
+        state.history.sampleTimer = 0;
+        const { totalLlen, utilPct } = computeMetrics();
+        state.history.llen.push(totalLlen);
+        state.history.llen.shift();
+        state.history.util.push(utilPct);
+        state.history.util.shift();
+        renderQueueControls();
+        if (state.selectedEntity) openInspector(state.selectedEntity);
+      }
+    }
+
+    // -------------------- METRICS & UI DASHBOARD UPDATES --------------------
+    function computeMetrics() {
+      let totalLlen = 0;
+      let totalWorkers = 0;
+      let busyWorkers = 0;
+      let worstDrainTime = 0;
+      let anyOverrun = false;
+
+      state.queues.forEach(q => {
+        if (!q.enabled) return;
+        totalLlen += q.items.length;
+        totalWorkers += q.workers.length;
+        const busy = q.workers.filter(w => w.status === 'EXECUTING' || w.status === 'WRITING').length;
+        busyWorkers += busy;
+
+        const jobSec = (state.baseLatencyMs * q.latencyFactor) / 1000;
+        const pendingLoad = q.items.length > 0
+          ? q.items.length
+          : Math.round(state.devicesPerGroup * q.jobMultiplier);
+        const drainSec = q.workers.length > 0 ? (pendingLoad * jobSec) / q.workers.length : 999;
+
+        if (drainSec > worstDrainTime) worstDrainTime = drainSec;
+        if (drainSec > q.frequency || q.overrun) anyOverrun = true;
+      });
+
+      const utilPct = totalWorkers > 0 ? Math.round((busyWorkers / totalWorkers) * 100) : 0;
+      const throughput = state.recentCompletions.length / 10;
+
+      return { totalLlen, totalWorkers, busyWorkers, utilPct, throughput, worstDrainTime, anyOverrun };
+    }
+
+    function updateDashboardUI() {
+      const { totalLlen, totalWorkers, busyWorkers, utilPct, throughput, worstDrainTime, anyOverrun } = computeMetrics();
+
+      // Header countdown (track primary poller queue)
+      const primaryQueue = state.queues.find(q => q.enabled && q.usesGlobalPollingFreq) || state.queues.find(q => q.enabled);
+      if (primaryQueue) {
+        document.getElementById('hdr-countdown').textContent = `${Math.max(0, primaryQueue.nextDispatchIn).toFixed(1)}s`;
+        const pct = Math.max(0, Math.min(100, ((primaryQueue.frequency - primaryQueue.nextDispatchIn) / primaryQueue.frequency) * 100));
+        document.getElementById('hdr-cycle-bar').style.width = `${pct}%`;
+      }
+
+      // KPIs
+      document.getElementById('kpi-total-llen').textContent = totalLlen;
+      document.getElementById('kpi-workers').textContent = `${busyWorkers} / ${totalWorkers}`;
+      document.getElementById('kpi-util-pct').textContent = `${utilPct}% busy`;
+      document.getElementById('kpi-throughput').innerHTML = `${throughput.toFixed(1)}<span class="text-xs font-normal text-slate-400">/s</span>`;
+      document.getElementById('kpi-avg-latency').textContent = `~${state.baseLatencyMs}ms`;
+      document.getElementById('kpi-completed').textContent = state.totalCompleted;
+      document.getElementById('kpi-overruns').textContent = state.overrunCount;
+
+      // Cycle Drain Estimate vs Polling Window
+      const drainEl = document.getElementById('kpi-drain-time');
+      const statusEl = document.getElementById('kpi-window-status');
+      const barEl = document.getElementById('kpi-drain-bar');
+      const cardEl = document.getElementById('kpi-window-card');
+      const bannerEl = document.getElementById('overrun-banner');
+
+      drainEl.textContent = `${worstDrainTime.toFixed(1)}s`;
+      const ratioPct = Math.min(100, (worstDrainTime / state.pollingInterval) * 100);
+      barEl.style.width = `${ratioPct}%`;
+
+      if (anyOverrun || worstDrainTime > state.pollingInterval) {
+        drainEl.className = 'text-2xl font-bold font-mono text-rose-400';
+        statusEl.textContent = 'OVERRUN RISK';
+        statusEl.className = 'text-[11px] font-mono font-semibold text-rose-400';
+        barEl.className = 'h-full bg-rose-500 transition-all duration-200';
+        cardEl.classList.add('border-rose-500/60', 'overrun-pulse');
+        bannerEl.classList.remove('hidden');
+        document.getElementById('overrun-text').textContent =
+          `Estimated drain time (${worstDrainTime.toFixed(1)}s) exceeds the ${state.pollingInterval}s polling window! Add workers or switch to 5-min (300s) polling.`;
+      } else if (worstDrainTime > state.pollingInterval * 0.72) {
+        drainEl.className = 'text-2xl font-bold font-mono text-amber-400';
+        statusEl.textContent = 'HIGH LOAD';
+        statusEl.className = 'text-[11px] font-mono font-semibold text-amber-400';
+        barEl.className = 'h-full bg-amber-400 transition-all duration-200';
+        cardEl.classList.remove('border-rose-500/60', 'overrun-pulse');
+        bannerEl.classList.add('hidden');
+      } else {
+        drainEl.className = 'text-2xl font-bold font-mono text-emerald-400';
+        statusEl.textContent = 'HEALTHY';
+        statusEl.className = 'text-[11px] font-mono font-semibold text-emerald-400';
+        barEl.className = 'h-full bg-emerald-400 transition-all duration-200';
+        cardEl.classList.remove('border-rose-500/60', 'overrun-pulse');
+        bannerEl.classList.add('hidden');
+      }
+
+      drawSparkline('spark-llen', state.history.llen, '#06b6d4');
+      drawSparkline('spark-util', state.history.util, '#10b981', 100);
+    }
+
+    function drawSparkline(canvasId, data, strokeColor, fixedMax = null) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) {
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+      }
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const maxVal = fixedMax || Math.max(10, ...data);
+      const stepX = rect.width / (data.length - 1);
+
+      ctx.beginPath();
+      data.forEach((val, idx) => {
+        const x = idx * stepX;
+        const y = rect.height - (val / maxVal) * (rect.height - 4) - 2;
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+
+      // Subtle gradient fill
+      ctx.lineTo(rect.width, rect.height);
+      ctx.lineTo(0, rect.height);
+      ctx.closePath();
+      ctx.fillStyle = strokeColor + '22';
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // -------------------- HTML5 CANVAS PIPELINE RENDERER --------------------
+    const canvas = document.getElementById('dispatcher-canvas');
+    const ctx = canvas.getContext('2d');
+    const hitRegions = []; // Stores interactive bounding boxes for queues and workers
+
+    function resizeMainCanvas() {
+      const wrapper = document.getElementById('canvas-wrapper');
+      const rect = wrapper.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(300, Math.round(rect.width * dpr));
+      canvas.height = Math.max(380, Math.round(rect.height * dpr));
+    }
+
+    function drawRoundRect(c, x, y, w, h, r) {
+      c.beginPath();
+      c.moveTo(x + r, y);
+      c.arcTo(x + w, y, x + w, y + h, r);
+      c.arcTo(x + w, y + h, x, y + h, r);
+      c.arcTo(x, y + h, x, y, r);
+      c.arcTo(x, y, x + w, y, r);
+      c.closePath();
+    }
+
+    function drawBezier(c, x1, y1, x2, y2, strokeStyle, lineWidth = 1.5, dashed = false) {
+      const midX = (x1 + x2) * 0.5;
+      c.save();
+      c.beginPath();
+      if (dashed) c.setLineDash([4, 4]);
+      c.moveTo(x1, y1);
+      c.bezierCurveTo(midX, y1, midX, y2, x2, y2);
+      c.strokeStyle = strokeStyle;
+      c.lineWidth = lineWidth;
+      c.stroke();
+      c.restore();
+    }
+
+    function getPointOnBezier(t, x1, y1, x2, y2) {
+      const midX = (x1 + x2) * 0.5;
+      const mt = 1 - t;
+      const x = mt * mt * mt * x1 + 3 * mt * mt * t * midX + 3 * mt * t * t * midX + t * t * t * x2;
+      const y = mt * mt * mt * y1 + 3 * mt * mt * t * y1 + 3 * mt * t * t * y2 + t * t * t * y2;
+      return { x, y };
+    }
+
+    function renderPipelineCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const W = canvas.width / dpr;
+      const H = canvas.height / dpr;
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, W, H);
+      hitRegions.length = 0;
+
+      // Subtle vertical stage dividers & headers
+      const colX = {
+        db: W * 0.09,
+        master: W * 0.27,
+        redis: W * 0.48,
+        workers: W * 0.72,
+        sink: W * 0.92
+      };
+
+      const stages = [
+        { x: colX.db, title: '1. MARIADB', sub: 'devices / due' },
+        { x: colX.master, title: '2. REDLOCK', sub: '_service_manager' },
+        { x: colX.redis, title: '3. REDIS QUEUES', sub: 'LPUSH / LLEN' },
+        { x: colX.workers, title: '4. THREAD POOL', sub: 'BLPOP workers' },
+        { x: colX.sink, title: '5. RRD / TSDB', sub: 'metrics write' }
+      ];
+
+      ctx.textAlign = 'center';
+      stages.forEach(st => {
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '700 10px "JetBrains Mono", monospace';
+        ctx.fillText(st.title, st.x, 22);
+        ctx.fillStyle = '#475569';
+        ctx.font = '400 9px "JetBrains Mono", monospace';
+        ctx.fillText(st.sub, st.x, 34);
+      });
+
+      const activeQueues = state.queues.filter(q => q.enabled);
+      const topPad = 52;
+      const bottomPad = 24;
+      const usableH = H - topPad - bottomPad;
+
+      // --- STAGE 1: MariaDB Node ---
+      const dbW = Math.min(92, W * 0.13);
+      const dbH = 128;
+      const dbX = colX.db - dbW / 2;
+      const dbY = topPad + usableH * 0.5 - dbH / 2;
+
+      drawRoundRect(ctx, dbX, dbY, dbW, dbH, 12);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = state.dbPulses.length > 0 ? '#06b6d4' : '#1e293b';
+      ctx.lineWidth = state.dbPulses.length > 0 ? 2 : 1.2;
+      ctx.stroke();
+
+      // Database cylinder rings
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.ellipse(colX.db, dbY + 26, 18, 6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(colX.db, dbY + 36, 18, 0.15, Math.PI - 0.15);
+      ctx.stroke();
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '700 10px "JetBrains Mono", monospace';
+      ctx.fillText('MySQL / DB', colX.db, dbY + 62);
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '600 10px "JetBrains Mono", monospace';
+      ctx.fillText(`${state.devicesPerGroup} dev/grp`, colX.db, dbY + 78);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '400 9px "JetBrains Mono", monospace';
+      ctx.fillText(`freq: ${state.pollingInterval}s`, colX.db, dbY + 94);
+
+      // --- STAGE 5: RRD / InfluxDB / Telemetry Sink Node ---
+      const sinkW = Math.min(92, W * 0.13);
+      const sinkH = 128;
+      const sinkX = colX.sink - sinkW / 2;
+      const sinkY = topPad + usableH * 0.5 - sinkH / 2;
+      const sinkGlowing = state.sinkPulses.length > 0;
+
+      drawRoundRect(ctx, sinkX, sinkY, sinkW, sinkH, 12);
+      ctx.fillStyle = sinkGlowing ? 'rgba(16, 185, 129, 0.12)' : '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = sinkGlowing ? '#10b981' : '#1e293b';
+      ctx.lineWidth = sinkGlowing ? 2 : 1.2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = '700 10px "JetBrains Mono", monospace';
+      ctx.fillText('RRD / TSDB', colX.sink, sinkY + 34);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '700 14px "JetBrains Mono", monospace';
+      ctx.fillText(state.totalCompleted, colX.sink, sinkY + 62);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '400 9px "JetBrains Mono", monospace';
+      ctx.fillText('polled writes', colX.sink, sinkY + 77);
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('last_polled ✓', colX.sink, sinkY + 96);
+
+      if (activeQueues.length === 0) {
+        ctx.fillStyle = '#64748b';
+        ctx.font = '500 13px "Inter", sans-serif';
+        ctx.fillText('All queues disabled — enable a queue on the right panel', W * 0.5, H * 0.5);
+        ctx.restore();
+        return;
+      }
+
+      // Compute row geometry for each active queue
+      const rowH = usableH / activeQueues.length;
+      const queuePositions = new Map();
+      const workerPositions = new Map();
+
+      activeQueues.forEach((q, idx) => {
+        const centerY = topPad + rowH * (idx + 0.5);
+
+        // --- STAGE 2: Master Scheduler + Redlock Ring ---
+        const lockX = colX.master;
+        const lockY = centerY;
+        const lockR = Math.min(20, rowH * 0.28);
+
+        // Line from MariaDB to Redlock Master
+        drawBezier(ctx, dbX + dbW, colX.db ? dbY + dbH / 2 : centerY, lockX - lockR - 4, lockY, 'rgba(56, 189, 248, 0.16)', 1.2);
+
+        // Redlock outer TTL ring
+        ctx.beginPath();
+        ctx.arc(lockX, lockY, lockR, 0, Math.PI * 2);
+        ctx.fillStyle = '#0f172a';
+        ctx.fill();
+        ctx.strokeStyle = q.lockTtl > 0 ? 'rgba(16, 185, 129, 0.35)' : '#1e293b';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        if (q.lockTtl > 0) {
+          const ttlRatio = q.lockTtl / q.maxLockTtl;
+          ctx.beginPath();
+          ctx.arc(lockX, lockY, lockR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ttlRatio);
+          ctx.strokeStyle = '#10b981';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+
+        // Countdown progress arc when waiting for next cycle
+        const waitRatio = Math.max(0, Math.min(1, 1 - q.nextDispatchIn / q.frequency));
+        ctx.beginPath();
+        ctx.arc(lockX, lockY, lockR - 5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * waitRatio);
+        ctx.strokeStyle = q.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = q.lockTtl > 0 ? '#10b981' : '#94a3b8';
+        ctx.font = '700 8px "JetBrains Mono", monospace';
+        ctx.fillText(q.lockTtl > 0 ? 'LOCK' : `${Math.ceil(q.nextDispatchIn)}s`, lockX, lockY + 3);
+
+        // --- STAGE 3: Redis Queue Buffer Box (Shows LLEN Job Blocks) ---
+        const qBoxW = Math.min(138, W * 0.17);
+        const qBoxH = Math.min(54, rowH * 0.72);
+        const qBoxX = colX.redis - qBoxW / 2;
+        const qBoxY = centerY - qBoxH / 2;
+
+        queuePositions.set(q.id, {
+          inX: qBoxX,
+          outX: qBoxX + qBoxW,
+          y: centerY,
+          lockX: lockX + lockR,
+          lockY
+        });
+
+        // Spline from Master Lock -> Redis Queue
+        drawBezier(ctx, lockX + lockR, lockY, qBoxX, centerY, q.color + '44', 1.6);
+
+        const isSelected = state.selectedEntity && state.selectedEntity.type === 'queue' && state.selectedEntity.queueId === q.id;
+        drawRoundRect(ctx, qBoxX, qBoxY, qBoxW, qBoxH, 10);
+        ctx.fillStyle = q.overrun ? 'rgba(244, 63, 94, 0.12)' : '#0f172a';
+        ctx.fill();
+        ctx.strokeStyle = q.overrun ? '#f43f5e' : isSelected ? '#ffffff' : q.color + '88';
+        ctx.lineWidth = isSelected || q.overrun ? 2 : 1.3;
+        ctx.stroke();
+
+        // Queue Header & LLEN count
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '700 10px "JetBrains Mono", monospace';
+        ctx.fillText(q.name, qBoxX + 8, qBoxY + 14);
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = q.items.length > 40 ? '#fbbf24' : q.color;
+        ctx.font = '700 10px "JetBrains Mono", monospace';
+        ctx.fillText(`LLEN:${q.items.length}`, qBoxX + qBoxW - 8, qBoxY + 14);
+
+        // Visual FIFO Job Blocks inside the Redis Buffer
+        const slotAreaX = qBoxX + 8;
+        const slotAreaW = qBoxW - 16;
+        const slotAreaY = qBoxY + 21;
+        const slotAreaH = qBoxH - 27;
+
+        drawRoundRect(ctx, slotAreaX, slotAreaY, slotAreaW, slotAreaH, 5);
+        ctx.fillStyle = '#060911';
+        ctx.fill();
+
+        const maxSlots = 22;
+        const visibleJobs = Math.min(maxSlots, q.items.length);
+        const slotGap = 2;
+        const slotW = (slotAreaW - slotGap * (maxSlots + 1)) / maxSlots;
+        for (let s = 0; s < visibleJobs; s++) {
+          const sx = slotAreaX + slotGap + s * (slotW + slotGap);
+          ctx.fillStyle = q.overrun ? '#f43f5e' : q.color;
+          ctx.fillRect(sx, slotAreaY + 3, Math.max(2, slotW), slotAreaH - 6);
+        }
+        if (q.items.length > maxSlots) {
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '700 8px "JetBrains Mono", monospace';
+          ctx.fillText(`+${q.items.length - maxSlots} queued`, slotAreaX + slotAreaW / 2, slotAreaY + slotAreaH / 2 + 3);
+        }
+
+        hitRegions.push({
+          type: 'queue',
+          queueId: q.id,
+          x: qBoxX,
+          y: qBoxY,
+          w: qBoxW,
+          h: qBoxH
+        });
+
+        // --- STAGE 4: Worker Thread Pool Nodes ---
+        const maxRenderedWorkers = 12;
+        const renderedWorkers = q.workers.slice(0, maxRenderedWorkers);
+        const cols = Math.min(6, Math.max(1, renderedWorkers.length));
+        const rows = Math.ceil(renderedWorkers.length / cols);
+        const wRadius = Math.min(13, Math.max(8.5, (rowH / Math.max(1.6, rows * 1.45)) * 0.42));
+        const hSpacing = wRadius * 2.55;
+        const vSpacing = wRadius * 2.45;
+        const poolStartX = colX.workers - ((cols - 1) * hSpacing) / 2;
+        const poolStartY = centerY - ((rows - 1) * vSpacing) / 2;
+
+        // Spline from Redis Queue -> Worker Pool
+        drawBezier(ctx, qBoxX + qBoxW, centerY, poolStartX - wRadius - 6, centerY, q.color + '44', 1.6);
+
+        renderedWorkers.forEach((w, wIdx) => {
+          const cIdx = wIdx % cols;
+          const rIdx = Math.floor(wIdx / cols);
+          const wx = poolStartX + cIdx * hSpacing;
+          const wy = poolStartY + rIdx * vSpacing;
+          w.x = wx;
+          w.y = wy;
+          w.r = wRadius;
+          workerPositions.set(w.id, { x: wx, y: wy, r: wRadius });
+
+          const isWSelected = state.selectedEntity && state.selectedEntity.type === 'worker' && state.selectedEntity.workerId === w.id;
+
+          // Worker background circle
+          ctx.beginPath();
+          ctx.arc(wx, wy, wRadius, 0, Math.PI * 2);
+          ctx.fillStyle = w.status === 'EXECUTING' || w.status === 'WRITING'
+            ? 'rgba(16, 185, 129, 0.16)'
+            : w.status === 'RESTARTING'
+              ? 'rgba(244, 63, 94, 0.22)'
+              : '#0f172a';
+          ctx.fill();
+
+          ctx.strokeStyle = isWSelected
+            ? '#ffffff'
+            : w.status === 'EXECUTING'
+              ? q.color
+              : w.status === 'WRITING'
+                ? '#10b981'
+                : w.status === 'RESTARTING'
+                  ? '#f43f5e'
+                  : '#334155';
+          ctx.lineWidth = isWSelected ? 2.2 : 1.5;
+          ctx.stroke();
+
+          // Progress arc when executing job
+          if (w.status === 'EXECUTING' || w.status === 'WRITING') {
+            ctx.beginPath();
+            ctx.arc(wx, wy, wRadius + 2.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, w.progress));
+            ctx.strokeStyle = w.status === 'WRITING' ? '#10b981' : '#38bdf8';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+
+          // Center text (Device ID or IDLE)
+          ctx.textAlign = 'center';
+          ctx.fillStyle = w.status === 'IDLE' ? '#64748b' : '#f8fafc';
+          ctx.font = `700 ${Math.max(7, Math.round(wRadius * 0.62))}px "JetBrains Mono", monospace`;
+          const label = w.status === 'RESTARTING'
+            ? 'RST'
+            : w.currentJob
+              ? `${w.currentJob.deviceId}`
+              : 'W';
+          ctx.fillText(label, wx, wy + 2.5);
+
+          hitRegions.push({
+            type: 'worker',
+            queueId: q.id,
+            workerId: w.id,
+            x: wx - wRadius - 2,
+            y: wy - wRadius - 2,
+            w: (wRadius + 2) * 2,
+            h: (wRadius + 2) * 2
+          });
+        });
+
+        // Map overflow workers (>12) to last rendered node so particles always land cleanly
+        if (q.workers.length > maxRenderedWorkers) {
+          const lastW = renderedWorkers[renderedWorkers.length - 1];
+          for (let extra = maxRenderedWorkers; extra < q.workers.length; extra++) {
+            workerPositions.set(q.workers[extra].id, { x: lastW.x, y: lastW.y, r: lastW.r });
+          }
+          ctx.textAlign = 'left';
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '700 9px "JetBrains Mono", monospace';
+          ctx.fillText(`+${q.workers.length - maxRenderedWorkers}`, poolStartX + cols * hSpacing - 4, centerY + 3);
+        }
+
+        // Spline from Worker Pool -> RRD / TSDB Sink
+        const poolEndX = poolStartX + (cols - 1) * hSpacing + wRadius + 6;
+        drawBezier(ctx, poolEndX, centerY, sinkX, sinkY + sinkH / 2, 'rgba(16, 185, 129, 0.16)', 1.2);
+      });
+
+      // --- DRAW ANIMATED DATA PARTICLES ---
+      state.particles.forEach(p => {
+        if (p.progress < 0) return;
+        const qPos = queuePositions.get(p.queueId);
+        if (!qPos) return;
+
+        let pt = null;
+        if (p.type === 'LPUSH') {
+          pt = getPointOnBezier(p.progress, qPos.lockX, qPos.lockY, qPos.inX, qPos.y);
+        } else if (p.type === 'BLPOP') {
+          const wPos = workerPositions.get(p.workerId);
+          if (wPos) {
+            pt = getPointOnBezier(p.progress, qPos.outX, qPos.y, wPos.x - wPos.r, wPos.y);
+          }
+        } else if (p.type === 'RRD_WRITE') {
+          const wPos = workerPositions.get(p.workerId);
+          if (wPos) {
+            pt = getPointOnBezier(p.progress, wPos.x + wPos.r, wPos.y, sinkX, sinkY + sinkH / 2);
+          }
+        }
+
+        if (pt) {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 3.4, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 6.5, 0, Math.PI * 2);
+          ctx.fillStyle = p.color + '33';
+          ctx.fill();
+        }
+      });
+
+      ctx.restore();
+    }
+
+    // Canvas Click / Tap Interaction
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // Check hit regions in reverse order (workers on top)
+      for (let i = hitRegions.length - 1; i >= 0; i--) {
+        const r = hitRegions[i];
+        if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+          openInspector(r);
+          return;
+        }
+      }
+      closeInspector();
+    });
+
+    // -------------------- MAIN ANIMATION LOOP --------------------
+    let lastFrameTime = performance.now();
+
+    function mainLoop(now) {
+      const rawDt = (now - lastFrameTime) / 1000;
+      lastFrameTime = now;
+      const dt = Math.min(rawDt, 0.05);
+
+      stepSimulation(dt);
+      updateDashboardUI();
+      renderPipelineCanvas();
+
+      requestAnimationFrame(mainLoop);
+    }
+
+    // -------------------- INITIALIZATION ON WINDOW LOAD --------------------
+    window.addEventListener('resize', resizeMainCanvas);
+    const resizeObserver = new ResizeObserver(() => resizeMainCanvas());
+    resizeObserver.observe(document.getElementById('canvas-wrapper'));
+
+    window.onload = function () {
+      resizeMainCanvas();
+      state.queues = createInitialQueues();
+      state.queues.forEach(q => reconcileWorkers(q));
+      setPollingInterval(60);
+      setSimSpeed(5);
+      renderQueueControls();
+      renderPythonCode();
+
+      // Kick off initial poll cycle so user sees immediate action
+      addLog('INFO', 'Service', 'Starting LibreNMS Dispatcher Service (LibreNMS/__init__.py)');
+      addLog('INFO', 'Redlock', 'Connected to Redis cluster; distributed master locks ready');
+      triggerImmediateDispatch();
+
+      requestAnimationFrame(mainLoop);
+    };
+  </script>
+</body>
+</html>
